@@ -107,4 +107,99 @@
             
             grid.innerHTML = texts.map(text => `
                 <div class="thought-stream text-card" data-text-id="${text.id}">
-                    <h3 style="color
+                    <h3 style="color: var(--bronze-thread); margin-bottom: 10px;">${text.title}</h3>
+                   <p style="opacity: 0.8; margin-bottom: 15px;">by ${text.author}</p>
+                   
+                   <div style="display: flex; gap: 15px; margin-bottom: 15px; font-size: 0.9rem;">
+                       <span style="opacity: 0.7;">Source: ${text.source}</span>
+                       ${text.uploaded_by ? `<span style="opacity: 0.7;">Shared by: ${text.uploaded_by}</span>` : ''}
+                   </div>
+                   
+                   <div style="margin-bottom: 15px;">
+                       <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                           <span style="font-size: 0.85rem; opacity: 0.7;">Engagement Depth</span>
+                           <span style="font-size: 0.85rem; color: var(--bronze-thread);">${Math.round(text.engagement_depth * 100)}%</span>
+                       </div>
+                       <div class="depth-indicator" style="--depth: ${text.engagement_depth * 100}%"></div>
+                   </div>
+                   
+                   ${text.last_engaged ? `
+                       <p style="font-size: 0.85rem; opacity: 0.7;">Last engaged: ${new Date(text.last_engaged).toLocaleDateString()}</p>
+                   ` : ''}
+                   
+                   <button onclick="viewTextDetails('${text.id}')" 
+                           style="background: none; border: 1px solid var(--bronze-thread); color: var(--bronze-thread); 
+                                  padding: 8px 16px; cursor: pointer; margin-top: 10px; transition: all 0.3s;">
+                       View Engagements
+                   </button>
+               </div>
+           `).join('');
+       }
+       
+       window.filterTexts = function(category) {
+           currentFilter = category;
+           
+           // Update active button
+           document.querySelectorAll('.filter-btn').forEach(btn => {
+               btn.classList.remove('active');
+           });
+           event.target.classList.add('active');
+           
+           // Filter texts
+           let filtered = allTexts;
+           
+           if (category !== 'all') {
+               if (category === 'uploaded') {
+                   filtered = allTexts.filter(text => text.uploaded_by);
+               } else {
+                   // Filter by category/type - this would need category data from backend
+                   filtered = allTexts.filter(text => 
+                       text.title.toLowerCase().includes(category) || 
+                       text.content?.toLowerCase().includes(category)
+                   );
+               }
+           }
+           
+           displayTexts(filtered);
+       };
+       
+       window.viewTextDetails = async function(textId) {
+           try {
+               const response = await fetch(`/api/library/text/${textId}`);
+               const data = await response.json();
+               
+               // Create modal with text details and engagements
+               const modalContent = `
+                   <h2 style="color: var(--bronze-thread); margin-bottom: 20px;">${data.title}</h2>
+                   <p style="opacity: 0.8; margin-bottom: 20px;">by ${data.author}</p>
+                   
+                   ${data.context ? `
+                       <div style="background: rgba(139, 115, 85, 0.1); padding: 15px; margin-bottom: 20px;">
+                           <strong>Context:</strong> ${data.context}
+                       </div>
+                   ` : ''}
+                   
+                   <h3 style="color: var(--bronze-thread); margin: 30px 0 20px;">My Engagements with This Text</h3>
+                   
+                   ${data.engagements.length === 0 ? 
+                       '<p style="opacity: 0.7;">No recorded engagements yet.</p>' :
+                       data.engagements.map(engagement => `
+                           <div class="thought-stream" style="margin-bottom: 20px;">
+                               <div style="margin-bottom: 10px; opacity: 0.7;">
+                                   ${new Date(engagement.timestamp).toLocaleString()} - ${formatThoughtType(engagement.type)}
+                               </div>
+                               <div>${formatThoughtContent(engagement.response)}</div>
+                           </div>
+                       `).join('')
+                   }
+               `;
+               
+               showModal(data.title, modalContent);
+               
+           } catch (error) {
+               console.error('Failed to load text details:', error);
+           }
+       };
+   </script>
+</body>
+</html>
