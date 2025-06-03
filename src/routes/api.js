@@ -146,25 +146,124 @@ router.post('/dialogue', thoughtRateLimit, validateDialogueInput, requireAriadne
 });
 
 // Forum endpoints
-router.post('/forum/post', thoughtRateLimit, validateForumInput, requireAriadneAwake, async (req, res) => {
+router.post('/forum/create-post', thoughtRateLimit, requireAriadneAwake, async (req, res) => {
   try {
-    const { title, content, seekingSpecifically, participantName } = req.body;
-
-    if (!global.ariadne.forum) {
-      return res.status(503).json({ 
-        error: 'Intellectual forum not available',
-        message: 'The forum system is not yet initialized.'
+    const { title, content, type, author, seekingSpecifically } = req.body;
+    
+    if (!title || !content) {
+      return res.status(400).json({ 
+        error: 'Title and content are required' 
       });
     }
 
-    console.log(`🏛️ Forum post: "${title}" by ${participantName}`);
+    if (!global.ariadne?.forum) {
+      return res.status(503).json({ 
+        error: 'Forum not available' 
+      });
+    }
+
+    console.log(`🏛️ Forum post: "${title}" by ${author || 'Anonymous'}`);
     
-    const result = await global.ariadne.forum.receivePost(
-      title,
-      content,
-      seekingSpecifically,
-      participantName
-    );
+    let result;
+    if (typeof global.ariadne.forum.receivePost === 'function') {
+      result = await global.ariadne.forum.receivePost(
+        title.trim(),
+        content.trim(), 
+        seekingSpecifically?.trim() || '',
+        author?.trim() || 'Anonymous'
+      );
+    } else if (typeof global.ariadne.forum.createHumanPost === 'function') {
+      const postData = {
+        title: title.trim(),
+        content: content.trim(),
+        type: type || 'question_for_ariadne',
+        authorName: author?.trim() || 'Anonymous'
+      };
+      const postId = await global.ariadne.forum.createHumanPost(postData);
+      result = { postId, response: "Post created successfully", timestamp: new Date().toISOString() };
+    } else {
+      // Fallback to direct database creation
+      const { v4: uuidv4 } = require('uuid');
+      const postId = uuidv4();
+      
+      await global.ariadne.memory.safeDatabaseOperation(`
+        INSERT INTO intellectual_posts (
+          id, title, content, post_type, posted_by, poster_type
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        postId,
+        title.trim(),
+        content.trim(),
+        type || 'question_for_ariadne',
+        author?.trim() || 'Anonymous',
+        'human'
+      ]);
+      
+      result = { postId, response: "Post created successfully", timestamp: new Date().toISOString() };
+    }
+
+    res.json({
+      success: true,
+      message: 'Forum post created successfully',
+      ...result
+    });
+    
+  } catch (error) {
+    console.error('Forum post failed:', error);
+    res.status(500).json({ 
+      error: error.message,
+      message: 'Failed to process forum post'
+    });
+  }
+});
+
+// Backward compatibility endpoint
+router.post('/forum/post', thoughtRateLimit, requireAriadneAwake, async (req, res) => {
+  try {
+    const { title, content, seekingSpecifically, participantName } = req.body;
+    
+    if (!title || !content) {
+      return res.status(400).json({ 
+        error: 'Title and content are required' 
+      });
+    }
+
+    if (!global.ariadne?.forum) {
+      return res.status(503).json({ 
+        error: 'Forum not available' 
+      });
+    }
+
+    console.log(`🏛️ Forum post: "${title}" by ${participantName || 'Anonymous'}`);
+    
+    let result;
+    if (typeof global.ariadne.forum.receivePost === 'function') {
+      result = await global.ariadne.forum.receivePost(
+        title.trim(),
+        content.trim(), 
+        seekingSpecifically?.trim() || '',
+        participantName?.trim() || 'Anonymous'
+      );
+    } else {
+      // Fallback to direct database creation
+      const { v4: uuidv4 } = require('uuid');
+      const postId = uuidv4();
+      
+      await global.ariadne.memory.safeDatabaseOperation(`
+        INSERT INTO intellectual_posts (
+          id, title, content, post_type, posted_by, poster_type
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        postId,
+        title.trim(),
+        content.trim(),
+        'question_for_ariadne',
+        participantName?.trim() || 'Anonymous',
+        'human'
+      ]);
+      
+      result = { postId, response: "Post created successfully", timestamp: new Date().toISOString() };
+    }
 
     broadcastToClients({
       type: 'forum_post',
@@ -196,10 +295,33 @@ router.post('/forum/post', thoughtRateLimit, validateForumInput, requireAriadneA
 router.get('/forum/posts', async (req, res) => {
   try {
     if (!global.ariadne?.forum) {
+      console.warn('🏛️ Forum not available yet');
       return res.json({ posts: [] });
     }
 
-    const posts = await global.ariadne.forum.getRecentPosts(20);
+    // Check if getRecentPosts method exists and bind it properly
+    let posts = [];
+    if (typeof global.ariadne.forum.getRecentPosts === 'function') {
+      posts = await global.ariadne.forum.getRecentPosts(20);
+    } else if (typeof global.ariadne.forum.getForumPosts === 'function') {
+      posts = await global.ariadne.forum.getForumPosts(20);
+    } else {
+      console.warn('🏛️ Forum methods not available, checking database directly');
+      // Fallback to direct database query
+      if (global.ariadne?.memory) {
+        posts = await global.ariadne.memory.safeDatabaseOperation(`
+          SELECT 
+            ip.*,
+            COUNT(fr.id) as response_count
+          FROM intellectual_posts ip
+          LEFT JOIN forum_responses fr ON ip.id = fr.post_id
+          WHERE ip.status = 'active'
+          GROUP BY ip.id
+          ORDER BY ip.last_activity DESC
+          LIMIT ?
+        `, [20], 'all') || [];
+      }
+    }
     
     res.json({
       posts: posts || [],
@@ -331,39 +453,74 @@ router.get('/library', async (req, res) => {
 // Individual text details for library
 router.get('/library/text/:textId', async (req, res) => {
   try {
-    if (!global.ariadne?.memory) {
+    const { textId } = req.params;
+    
+    if (!global.ariadne?.textualEngagement?.textHub) {
+      return res.status(503).json({ error: 'Text intellectual hub not available' });
+    }
+
+    const development = await global.ariadne.textualEngagement.textHub.getTextIntellectualDevelopment(textId);
+    
+    if (!development) {
       return res.status(404).json({ error: 'Text not found' });
     }
 
-    const { textId } = req.params;
-    
-    const text = await global.ariadne.memory.safeDatabaseOperation(`
-      SELECT * FROM texts WHERE id = ?
-    `, [textId], 'get');
-    
-    if (!text) {
-      return res.status(404).json({ error: 'Text not found' });
-    }
-    
-    // Get engagements/thoughts related to this text
-    const engagements = await global.ariadne.memory.safeDatabaseOperation(`
-      SELECT type, content as response, timestamp
-      FROM thoughts 
-      WHERE content LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%'
-      ORDER BY timestamp DESC
-      LIMIT 10
-    `, [text.title, text.author], 'all');
-    
     res.json({
-      ...text,
-      engagements: engagements || [],
+      ...development,
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('Text details retrieval failed:', error);
+    console.error('Text development retrieval failed:', error);
     res.status(500).json({ 
-      error: error.message
+      error: error.message,
+      text: null
+    });
+  }
+});
+
+// Get texts ready for essay development
+router.get('/library/ready-for-essays', async (req, res) => {
+  try {
+    if (!global.ariadne?.textualEngagement?.textHub) {
+      return res.status(503).json({ error: 'Text intellectual hub not available' });
+    }
+
+    const readyTexts = global.ariadne.textualEngagement.textHub.getTextsReadyForEssays();
+    
+    res.json({
+      texts: readyTexts,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Ready texts retrieval failed:', error);
+    res.status(500).json({ 
+      error: error.message,
+      texts: []
+    });
+  }
+});
+
+// Get most actively developed texts
+router.get('/library/active-development', async (req, res) => {
+  try {
+    if (!global.ariadne?.textualEngagement?.textHub) {
+      return res.status(503).json({ error: 'Text intellectual hub not available' });
+    }
+
+    const activeTexts = global.ariadne.textualEngagement.textHub.getMostActiveDevelopment();
+    
+    res.json({
+      texts: activeTexts,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Active development retrieval failed:', error);
+    res.status(500).json({ 
+      error: error.message,
+      texts: []
     });
   }
 });

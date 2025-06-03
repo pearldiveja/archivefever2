@@ -851,13 +851,62 @@ This relates to your recent forum post and thinking. Generate a thought (400-600
 
   // Public methods for API access
   async getForumPosts(limit = 20) {
-    return await global.ariadne.memory.safeDatabaseOperation(`
-      SELECT p.*, 
-             (SELECT COUNT(*) FROM forum_responses WHERE post_id = p.id) as response_count
-      FROM intellectual_posts p
-      ORDER BY last_activity DESC
-      LIMIT ?
-    `, [limit], 'all') || [];
+    try {
+      const posts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT 
+          ip.*,
+          COUNT(fr.id) as response_count
+        FROM intellectual_posts ip
+        LEFT JOIN forum_responses fr ON ip.id = fr.post_id
+        WHERE ip.status = 'active'
+        GROUP BY ip.id
+        ORDER BY ip.last_activity DESC
+        LIMIT ?
+      `, [limit], 'all');
+      
+      return posts || [];
+    } catch (error) {
+      console.error('Failed to get forum posts:', error);
+      return [];
+    }
+  }
+
+  // Add alias method for API compatibility
+  async getRecentPosts(limit = 20) {
+    return await this.getForumPosts(limit);
+  }
+
+  // Add receivePost method for API compatibility
+  async receivePost(title, content, seekingSpecifically, participantName) {
+    try {
+      const postData = {
+        title,
+        content,
+        seeking_specifically: seekingSpecifically,
+        posted_by: participantName,
+        poster_type: 'human',
+        post_type: 'human_inquiry'
+      };
+      
+      const postId = await this.createHumanPost(postData);
+      
+      // Generate Ariadne's response
+      await this.considerAriadneResponse(postId);
+      
+      // Get the full post with responses
+      const fullPost = await this.getPostWithResponses(postId);
+      
+      return {
+        postId: postId,
+        response: fullPost.responses && fullPost.responses.length > 0 ? 
+          fullPost.responses[0].content : 
+          "I will contemplate your question and respond thoughtfully.",
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Failed to receive post:', error);
+      throw error;
+    }
   }
 
   async getPostWithResponses(postId) {

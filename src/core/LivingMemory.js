@@ -155,30 +155,37 @@ class LivingMemory {
           timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
         
-        // Reading responses for deep text engagement
+        // Enhanced reading responses with depth tracking
         `CREATE TABLE IF NOT EXISTS reading_responses (
           id TEXT PRIMARY KEY,
           text_id TEXT NOT NULL,
-          passage TEXT NOT NULL,
-          response TEXT NOT NULL,
           response_type TEXT,
-          quotes_used TEXT,
-          arguments_made TEXT,
+          content TEXT,
+          depth_score REAL DEFAULT 0.5,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (text_id) REFERENCES texts(id)
+        )`,
+        
+        // Text engagement tracking for sustained inquiry
+        `CREATE TABLE IF NOT EXISTS text_engagements (
+          id TEXT PRIMARY KEY,
+          text_id TEXT NOT NULL,
+          engagement_type TEXT NOT NULL,
+          content TEXT NOT NULL,
+          depth_score REAL DEFAULT 0.0,
           timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (text_id) REFERENCES texts(id)
         )`,
         
-        // Concept development tracking
+        // Concept development tracking for sustained inquiry
         `CREATE TABLE IF NOT EXISTS concept_development (
           id TEXT PRIMARY KEY,
-          concept_name TEXT NOT NULL,
-          definition TEXT,
-          evolution_notes TEXT,
-          first_appearance DATETIME,
-          last_development DATETIME,
-          development_depth REAL DEFAULT 0.0,
-          related_texts TEXT,
-          related_curiosities TEXT
+          concept_name TEXT UNIQUE NOT NULL,
+          definition TEXT DEFAULT '',
+          evolution_notes TEXT DEFAULT '',
+          first_appearance DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_development DATETIME DEFAULT CURRENT_TIMESTAMP,
+          development_depth REAL DEFAULT 0.1
         )`,
         
         // Intellectual momentum tracking
@@ -220,19 +227,17 @@ class LivingMemory {
   async safeDatabaseOperation(query, params = [], operation = 'run') {
     return new Promise((resolve, reject) => {
       if (!this.db) {
-        console.warn('Database not available, using fallback');
-        resolve(null);
-        return;
+        return reject(new Error('Database not initialized'));
       }
-      
+
       const callback = (err, result) => {
         if (err) {
           console.error('Database operation failed:', err);
           console.error('Query:', query);
           console.error('Params:', params);
-          resolve(null); // Graceful degradation instead of crashing
+          reject(err);
         } else {
-          resolve(operation === 'get' ? result : (operation === 'all' ? result : this.lastID || this.changes));
+          resolve(result);
         }
       };
       

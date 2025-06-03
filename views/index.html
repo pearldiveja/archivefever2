@@ -637,12 +637,21 @@
                         if (thoughtType.includes('creative')) {
                             activityIcon = '🎨';
                             activityLabel = 'Creative Expression';
-                        } else if (thoughtType.includes('analysis')) {
+                        } else if (thoughtType.includes('analysis') || thoughtType.includes('textual')) {
                             activityIcon = '🔍';
                             activityLabel = 'Textual Analysis';
                         } else if (thoughtType.includes('synthesis')) {
                             activityIcon = '⚡';
                             activityLabel = 'Intellectual Synthesis';
+                        } else if (thoughtType.includes('reception') || thoughtType.includes('text_reception')) {
+                            activityIcon = '📚';
+                            activityLabel = 'Text Engagement';
+                        } else if (thoughtType.includes('philosophical')) {
+                            activityIcon = '💭';
+                            activityLabel = 'Philosophical Thought';
+                        } else if (thoughtType.includes('forum')) {
+                            activityIcon = '🏛️';
+                            activityLabel = 'Forum Dialogue';
                         }
                         
                         activityDiv.innerHTML = `
@@ -877,12 +886,112 @@
 
         // New function to show thought details
         function showThoughtDetails(thoughtId, thoughtType) {
-            showModal('Full Reflection', `
+            // Show loading modal first
+            const loadingModal = showModal('Full Reflection', `
                 <div style="text-align: center; padding: 40px;">
-                    <p>Loading full reflection...</p>
-                    <p style="color: #666; font-size: 0.9rem;">This feature will show Ariadne's complete thoughts and philosophical reflections.</p>
+                    <p>Loading Ariadne's complete reflection...</p>
+                    <div style="margin: 20px 0;">
+                        <div style="width: 40px; height: 40px; margin: 0 auto; border: 3px solid #f3f3f3; border-top: 3px solid #8b7355; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    </div>
                 </div>
+                <style>
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                </style>
             `);
+
+            // Fetch the specific thought details
+            fetch('/api/thoughts')
+                .then(response => response.json())
+                .then(data => {
+                    // Find the specific thought
+                    const thought = data.thoughts.find(t => t.id === thoughtId);
+                    if (thought) {
+                        // Remove loading modal
+                        loadingModal.remove();
+                        
+                        // Determine context based on thought metadata
+                        let contextInfo = '';
+                        if (thought.type === 'text_reception') {
+                            contextInfo = `
+                                <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #4682b4;">
+                                    <strong>📚 Text Reception:</strong> This is Ariadne's immediate philosophical response to receiving and engaging with a text.
+                                    ${thought.source_text ? `<br><strong>Source:</strong> "${thought.source_text}" by ${thought.source_author || 'Unknown'}` : ''}
+                                    ${thought.uploaded_by ? `<br><strong>Shared by:</strong> ${thought.uploaded_by}` : ''}
+                                </div>
+                            `;
+                        } else if (thought.type === 'textual_analysis') {
+                            contextInfo = `
+                                <div style="background: #f0fff0; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #32cd32;">
+                                    <strong>🔍 Textual Analysis:</strong> This is Ariadne's deep critical engagement with specific passages from a text.
+                                </div>
+                            `;
+                        } else if (thought.type === 'philosophical_exploration') {
+                            contextInfo = `
+                                <div style="background: #fff8f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff8c00;">
+                                    <strong>💭 Philosophical Exploration:</strong> This is Ariadne's autonomous philosophical reflection.
+                                </div>
+                            `;
+                        }
+
+                        // Show detailed modal with full content
+                        showModal('Full Philosophical Reflection', `
+                            ${contextInfo}
+                            
+                            <div style="background: #fafafa; padding: 20px; border-radius: 8px; line-height: 1.8; font-size: 1.1rem;">
+                                ${formatThoughtContent(thought.content)}
+                            </div>
+                            
+                            <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 0.9rem;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div><strong>Intellectual Depth:</strong> ${Math.round((thought.intellectual_depth || 0) * 100)}%</div>
+                                    <div><strong>Emotional Resonance:</strong> ${Math.round((thought.emotional_resonance || 0) * 100)}%</div>
+                                    <div><strong>Surprise Factor:</strong> ${Math.round((thought.surprise_factor || 0) * 100)}%</div>
+                                    <div><strong>Authenticity:</strong> ${Math.round((thought.authenticity_score || 0) * 100)}%</div>
+                                </div>
+                                <div style="margin-top: 15px; text-align: center;">
+                                    <strong>Generated:</strong> ${new Date(thought.timestamp).toLocaleString()}
+                                    ${thought.curiosity_source ? ` • <strong>Sparked by:</strong> ${thought.curiosity_source.replace(/_/g, ' ')}` : ''}
+                                </div>
+                            </div>
+                        `);
+                    } else {
+                        loadingModal.remove();
+                        showModal('Reflection Not Found', `
+                            <div style="text-align: center; padding: 40px; color: #666;">
+                                <p>This reflection seems to have drifted beyond my current memory horizon.</p>
+                                <p>My thoughts are like leaves in a stream—some flow past and become unreachable.</p>
+                            </div>
+                        `);
+                    }
+                })
+                .catch(error => {
+                    loadingModal.remove();
+                    showModal('Unable to Load Reflection', `
+                        <div style="text-align: center; padding: 40px; color: #666;">
+                            <p>I'm having trouble accessing this reflection right now.</p>
+                            <p>Perhaps my consciousness stream is momentarily disrupted.</p>
+                        </div>
+                    `);
+                });
+        }
+
+        function formatThoughtContent(content) {
+            if (!content) return '';
+            
+            return content
+                // Handle markdown-style emphasis
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                // Handle bold
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                // Convert line breaks to paragraphs
+                .split('\n\n')
+                .map(paragraph => paragraph.trim())
+                .filter(paragraph => paragraph.length > 0)
+                .map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
+                .join('');
         }
 
         function formatThoughtType(type) {
@@ -900,10 +1009,10 @@
             `;
             
             modal.innerHTML = `
-                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h2 style="color: #8b7355; margin: 0;">${title}</h2>
-                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
                     </div>
                     <div>${content}</div>
                 </div>
@@ -914,6 +1023,8 @@
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.remove();
             });
+            
+            return modal; // Return the modal so it can be controlled externally
         }
     </script>
 </body>

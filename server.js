@@ -14,6 +14,7 @@ const IntellectualForumEngagement = require('./src/core/IntellectualForum');
 const { setupWebSocket } = require('./src/utils/websocket');
 const apiRoutes = require('./src/routes/api');
 const pageRoutes = require('./src/routes/pages');
+const TextualEngagement = require('./src/core/TextualEngagement');
 
 // Initialize Express
 const app = express();
@@ -157,6 +158,14 @@ async function initializeAriadne() {
     console.log('🧠 Initializing Intellectual Forum...');
     global.ariadne.forum = new IntellectualForumEngagement();
     await global.ariadne.forum.initialize();
+    
+    // Initialize textual engagement
+    console.log('📖 Initializing textual engagement...');
+    global.ariadne.textualEngagement = new TextualEngagement();
+    await global.ariadne.textualEngagement.initialize();
+    
+    // Make text hub available globally
+    global.ariadne.textHub = global.ariadne.textualEngagement.textHub;
     
     console.log('✅ Ariadne consciousness initialized');
     console.log('✨ Ariadne is now conscious and autonomous');

@@ -443,18 +443,16 @@
         
         async function loadLibrary() {
             try {
-                const response = await fetch('/api/library');
-                const data = await response.json();
+                const [textsResponse, activeDevResponse] = await Promise.all([
+                    fetch('/api/texts'),
+                    fetch('/api/library/active-development')
+                ]);
                 
-                allTexts = data.texts || [];
+                const textsData = await textsResponse.json();
+                const activeDevData = await activeDevResponse.json();
                 
-                // Update stats
-                document.getElementById('total-texts').textContent = data.totalTexts || allTexts.length;
-                document.getElementById('current-reading').textContent = data.currentlyReading || 'None';
-                document.getElementById('deep-engagements').textContent = data.deepEngagements || 0;
-                
-                displayTexts(allTexts);
-                
+                displayTexts(textsData.texts || [], activeDevData.texts || []);
+                displayActiveDevelopment(activeDevData.texts || []);
             } catch (error) {
                 console.error('Failed to load library:', error);
                 document.getElementById('text-grid').innerHTML = `
@@ -466,11 +464,11 @@
             }
         }
         
-        function displayTexts(texts) {
-            const grid = document.getElementById('text-grid');
+        function displayTexts(texts, activeDevTexts) {
+            const container = document.getElementById('text-grid');
             
             if (!texts || texts.length === 0) {
-                grid.innerHTML = `
+                container.innerHTML = `
                     <div class="empty-state">
                         <h3>No texts found</h3>
                         <p>No texts match the current filter criteria. Try a different category.</p>
@@ -478,38 +476,84 @@
                 `;
                 return;
             }
-            
-            grid.innerHTML = texts.map(text => `
-                <div class="text-card" data-text-id="${text.id}">
-                    <h3 class="text-title">${escapeHtml(text.title)}</h3>
-                    <p class="text-author">by ${escapeHtml(text.author || 'Unknown Author')}</p>
-                   
-                    <div class="text-meta">
-                        <span>Source: ${escapeHtml(text.source || 'Unknown')}</span>
-                        ${text.uploaded_by ? `<span>Shared by: ${escapeHtml(text.uploaded_by)}</span>` : ''}
-                    </div>
-                   
-                    <div class="engagement-section">
-                        <div class="engagement-label">
-                            <span class="engagement-label-text">Engagement Depth</span>
-                            <span class="engagement-percentage">${Math.round((text.engagement_depth || 0) * 100)}%</span>
+
+            // Create a map of sustained inquiry scores
+            const sustainedInquiryMap = new Map();
+            activeDevTexts.forEach(devText => {
+                sustainedInquiryMap.set(devText.textId, devText.sustainedInquiryScore || 0);
+            });
+
+            texts.sort((a, b) => {
+                const scoreA = sustainedInquiryMap.get(a.id) || 0;
+                const scoreB = sustainedInquiryMap.get(b.id) || 0;
+                return scoreB - scoreA; // Sort by sustained inquiry score descending
+            });
+
+            container.innerHTML = texts.map(text => {
+                const sustainedScore = sustainedInquiryMap.get(text.id) || 0;
+                const developmentLevel = getDevelopmentLevel(sustainedScore);
+                
+                return `
+                    <div class="text-item ${developmentLevel.class}" onclick="openTextDevelopment('${text.id}')">
+                        <div class="text-header">
+                            <h3 class="text-title">"${text.title}"</h3>
+                            <span class="text-author">by ${text.author}</span>
                         </div>
-                        <div class="engagement-bar">
-                            <div class="engagement-fill" style="width: ${(text.engagement_depth || 0) * 100}%"></div>
+                        <div class="text-meta">
+                            <span class="text-source">📚 ${text.source || 'uploaded'}</span>
+                            <span class="engagement-depth">🧠 ${(text.engagement_depth * 100).toFixed(0)}% engaged</span>
+                            <span class="sustained-inquiry">${developmentLevel.icon} ${developmentLevel.label}</span>
+                        </div>
+                        <div class="text-actions">
+                            <button onclick="event.stopPropagation(); readMore('${text.id}')" class="action-btn">
+                                📖 Explore Context
+                            </button>
+                            <button onclick="event.stopPropagation(); showIntellectualGenealogy('${text.id}')" class="action-btn">
+                                🧬 Development History
+                            </button>
                         </div>
                     </div>
-                   
-                    ${text.last_engaged ? `
-                        <p class="text-date">Last engaged: ${formatDate(text.last_engaged)}</p>
-                    ` : ''}
-                   
-                    <button class="view-btn" onclick="viewTextDetails('${text.id}')">
-                        View Engagements
-                    </button>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
-       
+
+        function getDevelopmentLevel(score) {
+            if (score >= 0.8) return { class: 'high-development', icon: '🚀', label: 'Highly Developed' };
+            if (score >= 0.5) return { class: 'medium-development', icon: '🌱', label: 'Growing Inquiry' };
+            if (score >= 0.2) return { class: 'low-development', icon: '🌿', label: 'Initial Engagement' };
+            return { class: 'minimal-development', icon: '📖', label: 'Recently Added' };
+        }
+
+        function displayActiveDevelopment(activeTexts) {
+            const sidebar = document.getElementById('active-development');
+            
+            if (!activeTexts || activeTexts.length === 0) {
+                sidebar.innerHTML = '<p>No active intellectual development yet.</p>';
+                return;
+            }
+
+            sidebar.innerHTML = `
+                <h3>🔥 Most Active Development</h3>
+                ${activeTexts.slice(0, 5).map(devText => `
+                    <div class="development-item" onclick="openTextDevelopment('${devText.textId}')">
+                        <div class="development-score">
+                            <span class="score-value">${(devText.sustainedInquiryScore * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="development-details">
+                            <div class="development-stats">
+                                💭 ${devText.thoughts?.length || 0} thoughts
+                                📝 ${devText.essays?.length || 0} essays
+                                🔗 ${devText.crossReferences?.length || 0} connections
+                            </div>
+                            <div class="last-activity">
+                                Last: ${formatDate(devText.lastActivity)}
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+
         window.filterTexts = function(category) {
             currentFilter = category;
             
@@ -535,7 +579,7 @@
                 }
             }
             
-            displayTexts(filtered);
+            displayTexts(filtered, allTexts.filter(text => text.id in sustainedInquiryMap));
         };
        
         window.viewTextDetails = async function(textId) {
@@ -621,6 +665,237 @@
                 closeModal();
             }
         });
+
+        // Open text intellectual development modal
+        async function openTextDevelopment(textId) {
+            try {
+                const response = await fetch(`/api/library/text/${textId}`);
+                const data = await response.json();
+                
+                if (!data.text) {
+                    throw new Error(data.error || 'Text not found');
+                }
+                
+                displayTextDevelopmentModal(data);
+            } catch (error) {
+                console.error('Failed to load text development:', error);
+                alert('Failed to load text development. Please try again.');
+            }
+        }
+
+        function displayTextDevelopmentModal(data) {
+            const { text, development, intellectualGenealogy, sustainedInquiryScore, recommendedNextSteps } = data;
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content text-development-modal">
+                    <div class="modal-header">
+                        <h2>"${text.title}"</h2>
+                        <span class="modal-subtitle">by ${text.author}</span>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+                    </div>
+                    
+                    <div class="development-overview">
+                        <div class="sustained-inquiry-score">
+                            <h3>Sustained Inquiry Score</h3>
+                            <div class="score-circle">
+                                <span class="score-number">${(sustainedInquiryScore * 100).toFixed(0)}%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="development-stats">
+                            <div class="stat-item">
+                                <span class="stat-number">${development.thoughts?.length || 0}</span>
+                                <span class="stat-label">Related Thoughts</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number">${development.essays?.length || 0}</span>
+                                <span class="stat-label">Essays/Treatises</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number">${development.forumPosts?.length || 0}</span>
+                                <span class="stat-label">Forum Discussions</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number">${development.crossReferences?.length || 0}</span>
+                                <span class="stat-label">Cross-References</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="intellectual-genealogy">
+                        <h3>🧬 Intellectual Genealogy</h3>
+                        <p>${intellectualGenealogy || 'This text is just beginning to influence intellectual development.'}</p>
+                    </div>
+                    
+                    <div class="development-sections">
+                        <div class="section-tabs">
+                            <button class="tab-btn active" onclick="showDevelopmentSection(this, 'thoughts')">💭 Thoughts</button>
+                            <button class="tab-btn" onclick="showDevelopmentSection(this, 'essays')">📝 Essays</button>
+                            <button class="tab-btn" onclick="showDevelopmentSection(this, 'connections')">🔗 Connections</button>
+                            <button class="tab-btn" onclick="showDevelopmentSection(this, 'milestones')">📈 Milestones</button>
+                        </div>
+                        
+                        <div id="development-content">
+                            ${renderThoughtsSection(development.thoughts)}
+                        </div>
+                    </div>
+                    
+                    ${recommendedNextSteps.length > 0 ? `
+                        <div class="next-steps">
+                            <h3>🎯 Recommended Next Steps</h3>
+                            <ul>
+                                ${recommendedNextSteps.map(step => `<li>${step}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Store data for tab switching
+            modal.developmentData = data;
+        }
+
+        function showDevelopmentSection(tabBtn, section) {
+            // Update active tab
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            tabBtn.classList.add('active');
+            
+            // Get data from modal
+            const modal = tabBtn.closest('.modal-overlay');
+            const data = modal.developmentData;
+            const content = document.getElementById('development-content');
+            
+            switch (section) {
+                case 'thoughts':
+                    content.innerHTML = renderThoughtsSection(data.development.thoughts);
+                    break;
+                case 'essays':
+                    content.innerHTML = renderEssaysSection(data.development.essays);
+                    break;
+                case 'connections':
+                    content.innerHTML = renderConnectionsSection(data.development.crossReferences);
+                    break;
+                case 'milestones':
+                    content.innerHTML = renderMilestonesSection(data.development.milestones);
+                    break;
+            }
+        }
+
+        function renderThoughtsSection(thoughts) {
+            if (!thoughts || thoughts.length === 0) {
+                return '<p class="empty-message">No related thoughts yet. Upload more texts or wait for autonomous development.</p>';
+            }
+            
+            return `
+                <div class="thoughts-list">
+                    ${thoughts.map(thought => `
+                        <div class="thought-item">
+                            <div class="thought-header">
+                                <span class="relationship-type">${formatRelationshipType(thought.relationship_type)}</span>
+                                <span class="thought-date">${formatDate(thought.linked_at)}</span>
+                            </div>
+                            <div class="thought-content">
+                                ${formatThoughtContent(thought.content)}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderEssaysSection(essays) {
+            if (!essays || essays.length === 0) {
+                return '<p class="empty-message">No essays developed yet. When enough related thoughts accumulate, essays will be created.</p>';
+            }
+            
+            return `
+                <div class="essays-list">
+                    ${essays.map(essay => `
+                        <div class="essay-item">
+                            <h4 class="essay-title">${essay.title}</h4>
+                            <div class="essay-meta">
+                                <span class="essay-type">${formatEssayType(essay.essay_type)}</span>
+                                <span class="essay-date">${formatDate(essay.created_at)}</span>
+                            </div>
+                            <div class="essay-preview">
+                                ${essay.content.substring(0, 300)}...
+                            </div>
+                            <button class="read-essay-btn" onclick="readFullEssay('${essay.id}')">Read Full Essay</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderConnectionsSection(connections) {
+            if (!connections || connections.length === 0) {
+                return '<p class="empty-message">No cross-references yet. As thinking develops, connections to other texts will emerge.</p>';
+            }
+            
+            return `
+                <div class="connections-list">
+                    ${connections.map(conn => `
+                        <div class="connection-item">
+                            <div class="connection-header">
+                                <span class="connection-title">"${conn.referenced_title}"</span>
+                                <span class="connection-author">by ${conn.referenced_author}</span>
+                                <span class="connection-strength">${(conn.strength * 100).toFixed(0)}% strength</span>
+                            </div>
+                            <div class="connection-context">
+                                ${conn.reference_context}
+                            </div>
+                            <button class="explore-connection-btn" onclick="openTextDevelopment('${conn.referenced_text_id}')">
+                                Explore Connected Text
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderMilestonesSection(milestones) {
+            if (!milestones || milestones.length === 0) {
+                return '<p class="empty-message">No development milestones yet. Milestones track significant intellectual developments.</p>';
+            }
+            
+            return `
+                <div class="milestones-list">
+                    ${milestones.map(milestone => `
+                        <div class="milestone-item significance-${Math.floor(milestone.significance * 3)}">
+                            <div class="milestone-header">
+                                <span class="milestone-type">${formatMilestoneType(milestone.milestone_type)}</span>
+                                <span class="milestone-date">${formatDate(milestone.created_at)}</span>
+                            </div>
+                            <div class="milestone-description">
+                                ${milestone.description}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function formatRelationshipType(type) {
+            return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatEssayType(type) {
+            return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatMilestoneType(type) {
+            return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatThoughtContent(content) {
+            // Format content with line breaks and emphasis
+            return content.replace(/\n/g, '<br>').replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        }
     </script>
 </body>
 </html>

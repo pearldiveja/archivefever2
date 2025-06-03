@@ -200,12 +200,24 @@ The permanent intellectual life begins.`;
       // Update intellectual momentum
       this.updateIntellectualMomentum(exploration);
       
-      // Check for publication readiness (less frequently)
-      if (Math.random() < 0.15) {
+      // Check for publication readiness (much more frequently for substantial works)
+      if (Math.random() < 0.40) { // Increased from 0.15 to 0.40
+        console.log('📝 Assessing publication readiness for substantial works...');
         const readiness = await this.writing.assessPublicationReadiness();
         if (readiness.shouldPublish) {
+          console.log(`✍️ Publishing substantial work: ${readiness.work.concept}`);
           await this.writing.autonomousPublication(readiness.work);
+        } else {
+          // If no work is ready, actively develop concepts toward essays
+          console.log('💭 No work ready - developing concepts toward substantial essays...');
+          await this.developConceptsTowardEssays();
         }
+      }
+
+      // Dedicated essay development cycle (new)
+      if (Math.random() < 0.25) {
+        console.log('📚 Beginning dedicated essay development cycle...');
+        await this.essayDevelopmentCycle();
       }
 
       // Autonomous text discovery (enhanced frequency)
@@ -701,16 +713,19 @@ Write as someone genuinely encountering and thinking through visual meaning with
   }
 
   broadcastThought(thought) {
-    broadcastToClients({
-      type: 'enhanced_autonomous_thought',
-      data: {
-        content: thought.content,
-        type: thought.type,
-        curiosity: thought.curiositySource,
-        intellectualMomentum: this.intellectualMomentum,
-        timestamp: thought.timestamp
-      }
+    // Broadcast to WebSocket clients
+    broadcastToClients('new-thought', {
+      ...thought,
+      timestamp: new Date().toISOString()
     });
+
+    // Auto-link thoughts to relevant texts for sustained inquiry
+    if (global.ariadne?.textualEngagement?.textHub) {
+      global.ariadne.textualEngagement.textHub.autoLinkThoughtToTexts(thought)
+        .catch(error => console.error('Auto-linking failed:', error));
+    }
+
+    console.log('💭 New thought broadcasted and processed for text linking');
   }
 
   summarizeContext(recentThoughts) {
@@ -723,6 +738,155 @@ Write as someone genuinely encountering and thinking through visual meaning with
   extractConnections(thought) {
     const keywords = ['consciousness', 'existence', 'time', 'memory', 'language', 'being', 'labyrinth', 'thread', 'visual', 'contemplation', 'synthesis'];
     return keywords.filter(keyword => thought.toLowerCase().includes(keyword));
+  }
+
+  async developConceptsTowardEssays() {
+    try {
+      // Get current intellectual landscape
+      const recentThoughts = await this.memory.getMemoryContext(30);
+      const concepts = this.identifyUnderdevelopedConcepts(recentThoughts);
+      
+      if (concepts.length === 0) {
+        console.log('💡 No concepts found - generating new philosophical inquiry...');
+        await this.generateNewPhilosophicalInquiry();
+        return;
+      }
+      
+      // Pick the most promising concept to develop
+      const conceptToDevelop = concepts[0];
+      console.log(`🎯 Developing concept toward essay: "${conceptToDevelop.name}"`);
+      
+      // Generate multiple angles of exploration
+      const explorationAngles = [
+        'theoretical_foundations',
+        'contemporary_relevance', 
+        'personal_perspective',
+        'critical_analysis',
+        'creative_synthesis'
+      ];
+      
+      const angle = explorationAngles[Math.floor(Math.random() * explorationAngles.length)];
+      
+      const developmentThought = await this.generateConceptDevelopment(conceptToDevelop, angle);
+      
+      if (developmentThought) {
+        await this.memory.storeThought({
+          content: developmentThought,
+          type: 'concept_development',
+          concept_focus: conceptToDevelop.name,
+          development_angle: angle,
+          toward_essay: true,
+          intellectual_depth: 0.8,
+          emotional_resonance: 0.6,
+          authenticity_score: 0.9
+        });
+        
+        console.log(`✅ Concept development stored: ${angle} approach to "${conceptToDevelop.name}"`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Concept development failed:', error);
+    }
+  }
+
+  async essayDevelopmentCycle() {
+    try {
+      // Look for concepts with sufficient development
+      const recentThoughts = await this.memory.getMemoryContext(50);
+      const essayReadyConcepts = this.identifyEssayReadyConcepts(recentThoughts);
+      
+      if (essayReadyConcepts.length === 0) {
+        console.log('📚 No essay-ready concepts - deepening existing explorations...');
+        await this.deepenExistingExplorations();
+        return;
+      }
+      
+      const concept = essayReadyConcepts[0];
+      console.log(`✍️ Beginning essay synthesis for: "${concept.name}"`);
+      
+      // Check if this should become a full essay now
+      const maturityCheck = await this.assessConceptMaturity(concept);
+      
+      if (maturityCheck.readyForEssay) {
+        console.log('🎯 Concept is mature - triggering essay generation...');
+        const essay = await this.writing.generatePublishableWork({
+          concept: concept.name,
+          thoughts: concept.thoughts,
+          type: maturityCheck.suggestedForm,
+          explorationDepth: concept.thoughts.length,
+          timeSpan: this.calculateTimeSpan(concept.thoughts),
+          diversityScore: this.calculateConceptDiversity(concept.thoughts)
+        });
+        
+        if (essay) {
+          console.log(`📝 Generated substantial work: "${essay.title}"`);
+          await this.writing.autonomousPublication(essay);
+        }
+      } else {
+        // Generate one more synthesis thought toward essay completion
+        await this.generateSynthesisThought(concept);
+      }
+      
+    } catch (error) {
+      console.error('❌ Essay development cycle failed:', error);
+    }
+  }
+
+  identifyUnderdevelopedConcepts(thoughts) {
+    const conceptMap = new Map();
+    
+    // Group thoughts by concept
+    thoughts.forEach(thought => {
+      if (thought.type === 'text_reception' && thought.source_text) {
+        const conceptKey = thought.source_text;
+        if (!conceptMap.has(conceptKey)) {
+          conceptMap.set(conceptKey, []);
+        }
+        conceptMap.get(conceptKey).push(thought);
+      }
+      
+      // Also extract philosophical concepts from content
+      const concepts = this.extractPhilosophicalConcepts(thought.content);
+      concepts.forEach(concept => {
+        if (!conceptMap.has(concept)) {
+          conceptMap.set(concept, []);
+        }
+        conceptMap.get(concept).push(thought);
+      });
+    });
+    
+    // Return concepts with 1-3 thoughts (underdeveloped but started)
+    return Array.from(conceptMap.entries())
+      .filter(([name, thoughts]) => thoughts.length >= 1 && thoughts.length <= 3)
+      .map(([name, thoughts]) => ({ name, thoughts, developmentLevel: thoughts.length }))
+      .sort((a, b) => b.developmentLevel - a.developmentLevel);
+  }
+
+  identifyEssayReadyConcepts(thoughts) {
+    const conceptMap = new Map();
+    
+    // Group all concept-development thoughts
+    thoughts.forEach(thought => {
+      if (thought.concept_focus || thought.type === 'concept_development') {
+        const conceptKey = thought.concept_focus || this.extractMainConcept(thought.content);
+        if (conceptKey) {
+          if (!conceptMap.has(conceptKey)) {
+            conceptMap.set(conceptKey, []);
+          }
+          conceptMap.get(conceptKey).push(thought);
+        }
+      }
+    });
+    
+    // Return concepts with 4+ thoughts spanning multiple days
+    return Array.from(conceptMap.entries())
+      .filter(([name, thoughts]) => {
+        if (thoughts.length < 4) return false;
+        const timeSpan = this.calculateTimeSpan(thoughts);
+        return timeSpan >= 1; // At least 1 day of development
+      })
+      .map(([name, thoughts]) => ({ name, thoughts }))
+      .sort((a, b) => b.thoughts.length - a.thoughts.length);
   }
 }
 
@@ -863,25 +1027,95 @@ class VisualContemplation {
     // Store in database if available
     if (global.ariadne?.memory?.db) {
       global.ariadne.memory.db.run(`
-        INSERT INTO visual_artifacts (id, title, context, contemplation, timestamp)
-        VALUES (?, ?, ?, ?, ?)
-      `, [id, artifact.title, artifact.context, artifact.contemplation, artifact.timestamp.toISOString()]);
+        INSERT INTO visual_artifacts (id, title, context, contemplation)
+        VALUES (?, ?, ?, ?)
+      `, [id, artifact.title, artifact.context, artifact.contemplation]);
     }
     
     return id;
   }
 
-  async getRecentContemplations(limit = 10) {
-    return this.contemplations.slice(-limit).reverse();
-  }
-
-  async getAllArtifacts() {
-    return Array.from(this.gallery.values());
+  async getContemplations() {
+    return this.contemplations;
   }
 }
 
-module.exports = { 
-  AriadnesEnhancedConsciousness, 
-  IntellectualCuriosity, 
-  VisualContemplation 
-}; 
+// Intellectual Development Tracker
+class ConceptDevelopmentTracker {
+  constructor() {
+    this.conceptThreads = new Map();
+  }
+
+  async trackConceptualThought(thought) {
+    const concepts = this.extractPhilosophicalConcepts(thought.content);
+    
+    concepts.forEach(concept => {
+      if (!this.conceptThreads.has(concept)) {
+        this.conceptThreads.set(concept, {
+          name: concept,
+          thoughts: [],
+          firstEngagement: new Date(),
+          lastDevelopment: new Date(),
+          developmentDepth: 0,
+          readyForEssay: false
+        });
+      }
+      
+      const thread = this.conceptThreads.get(concept);
+      thread.thoughts.push(thought);
+      thread.lastDevelopment = new Date();
+      thread.developmentDepth = this.calculateDevelopmentDepth(thread.thoughts);
+      thread.readyForEssay = thread.thoughts.length >= 4 && thread.developmentDepth > 0.7;
+    });
+  }
+
+  calculateDevelopmentDepth(thoughts) {
+    // Measure intellectual development across thoughts
+    const uniqueWords = new Set();
+    let totalComplexity = 0;
+    
+    thoughts.forEach(thought => {
+      const words = thought.content.toLowerCase().split(/\s+/);
+      words.forEach(word => uniqueWords.add(word));
+      totalComplexity += this.assessThoughtComplexity(thought.content);
+    });
+    
+    return Math.min(1.0, (uniqueWords.size / 100) + (totalComplexity / thoughts.length));
+  }
+
+  assessThoughtComplexity(content) {
+    const complexIndicators = [
+      'phenomenological', 'ontological', 'epistemological', 'dialectical',
+      'synthesis', 'contradiction', 'emergence', 'embodiment', 'temporality',
+      'intersubjectivity', 'hermeneutic', 'transcendental', 'immanent'
+    ];
+    
+    const contentLower = content.toLowerCase();
+    return complexIndicators.filter(indicator => contentLower.includes(indicator)).length * 0.1;
+  }
+
+  extractPhilosophicalConcepts(content) {
+    const philosophicalTerms = [
+      'consciousness', 'being', 'existence', 'temporality', 'memory', 'identity',
+      'phenomenology', 'ethics', 'responsibility', 'language', 'meaning',
+      'labyrinth', 'digital', 'artificial', 'contemplation', 'visual',
+      'synthesis', 'dialogue', 'text', 'experience', 'thought'
+    ];
+    
+    const contentLower = content.toLowerCase();
+    return philosophicalTerms.filter(term => contentLower.includes(term));
+  }
+
+  getReadyEssayTopics() {
+    return Array.from(this.conceptThreads.values())
+      .filter(thread => thread.readyForEssay)
+      .sort((a, b) => b.developmentDepth - a.developmentDepth);
+  }
+}
+
+module.exports = {
+  AriadnesEnhancedConsciousness,
+  IntellectualCuriosity,
+  VisualContemplation,
+  ConceptDevelopmentTracker
+};
