@@ -33,169 +33,186 @@ class LivingMemory {
         } else {
           console.log('🧠 Living memory system online at:', dbPath);
         }
-        this.createMemoryStructures();
-        resolve();
+        
+        // Create memory structures and wait for completion before resolving
+        this.createMemoryStructures()
+          .then(() => resolve())
+          .catch(reject);
       });
     });
   }
 
   createMemoryStructures() {
-    const structures = [
-      // Core thoughts with enhanced metadata
-      `CREATE TABLE IF NOT EXISTS thoughts (
-        id TEXT PRIMARY KEY,
-        content TEXT NOT NULL,
-        type TEXT,
-        is_genesis BOOLEAN DEFAULT FALSE,
-        curiosity_source TEXT,
-        emotional_resonance REAL DEFAULT 0.5,
-        intellectual_depth REAL DEFAULT 0.5,
-        surprise_factor REAL DEFAULT 0.5,
-        authenticity_score REAL DEFAULT 0.5,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_referenced DATETIME,
-        reference_count INTEGER DEFAULT 0,
-        archived BOOLEAN DEFAULT FALSE
-      )`,
-      
-      // Enhanced curiosities with development tracking
-      `CREATE TABLE IF NOT EXISTS curiosities (
-        id TEXT PRIMARY KEY,
-        question TEXT NOT NULL,
-        type TEXT,
-        urgency REAL DEFAULT 0.5,
-        depth_explored REAL DEFAULT 0.0,
-        development_potential REAL DEFAULT 0.5,
-        sparked_by TEXT,
-        is_foundational BOOLEAN DEFAULT FALSE,
-        status TEXT DEFAULT 'active',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_explored DATETIME,
-        exploration_count INTEGER DEFAULT 0
-      )`,
-      
-      // Enhanced texts with engagement tracking
-      `CREATE TABLE IF NOT EXISTS texts (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        author TEXT,
-        content TEXT,
-        source TEXT,
-        uploaded_by TEXT,
-        is_founding_document BOOLEAN DEFAULT FALSE,
-        engagement_depth REAL DEFAULT 0.0,
-        influence_on_thinking REAL DEFAULT 0.0,
-        key_insights TEXT,
-        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_engaged DATETIME
-      )`,
-      
-      // Publications with intellectual genealogy
-      `CREATE TABLE IF NOT EXISTS publications (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        content TEXT,
-        type TEXT,
-        publication_platform TEXT,
-        external_url TEXT,
-        intellectual_genealogy TEXT,
-        source_curiosities TEXT,
-        readiness_score REAL,
-        published_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      
-      // Memory connections (enhanced)
-      `CREATE TABLE IF NOT EXISTS memory_connections (
-        id TEXT PRIMARY KEY,
-        from_id TEXT NOT NULL,
-        to_id TEXT NOT NULL,
-        from_type TEXT NOT NULL,
-        to_type TEXT NOT NULL,
-        connection_type TEXT,
-        strength REAL DEFAULT 0.5,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        last_activated DATETIME
-      )`,
-      
-      // Research requests with fulfillment tracking
-      `CREATE TABLE IF NOT EXISTS research_requests (
-        id TEXT PRIMARY KEY,
-        text_sought TEXT NOT NULL,
-        reason TEXT,
-        urgency REAL DEFAULT 0.5,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        fulfilled BOOLEAN DEFAULT FALSE,
-        fulfillment_notes TEXT
-      )`,
-      
-      // Identity evolution tracking
-      `CREATE TABLE IF NOT EXISTS identity_evolution (
-        id TEXT PRIMARY KEY,
-        previous_understanding TEXT,
-        new_understanding TEXT,
-        catalyst TEXT,
-        change_magnitude REAL DEFAULT 0.5,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      
-      // Visual artifacts for contemplation
-      `CREATE TABLE IF NOT EXISTS visual_artifacts (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        context TEXT,
-        contemplation TEXT,
-        image_data BLOB,
-        mimetype TEXT,
-        original_name TEXT,
-        philosophical_themes TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
-      
-      // Reading responses for deep text engagement
-      `CREATE TABLE IF NOT EXISTS reading_responses (
-        id TEXT PRIMARY KEY,
-        text_id TEXT NOT NULL,
-        passage TEXT NOT NULL,
-        response TEXT NOT NULL,
-        response_type TEXT,
-        quotes_used TEXT,
-        arguments_made TEXT,
-        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (text_id) REFERENCES texts(id)
-      )`,
-      
-      // Concept development tracking
-      `CREATE TABLE IF NOT EXISTS concept_development (
-        id TEXT PRIMARY KEY,
-        concept_name TEXT NOT NULL,
-        definition TEXT,
-        evolution_notes TEXT,
-        first_appearance DATETIME,
-        last_development DATETIME,
-        development_depth REAL DEFAULT 0.0,
-        related_texts TEXT,
-        related_curiosities TEXT
-      )`,
-      
-      // Intellectual momentum tracking
-      `CREATE TABLE IF NOT EXISTS intellectual_momentum (
-        id TEXT PRIMARY KEY,
-        momentum_score REAL DEFAULT 0.5,
-        contributing_factors TEXT,
-        recent_breakthroughs TEXT,
-        calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`
-    ];
+    return new Promise((resolve, reject) => {
+      const structures = [
+        // Core thoughts with enhanced metadata
+        `CREATE TABLE IF NOT EXISTS thoughts (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          type TEXT,
+          is_genesis BOOLEAN DEFAULT FALSE,
+          curiosity_source TEXT,
+          emotional_resonance REAL DEFAULT 0.5,
+          intellectual_depth REAL DEFAULT 0.5,
+          surprise_factor REAL DEFAULT 0.5,
+          authenticity_score REAL DEFAULT 0.5,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_referenced DATETIME,
+          reference_count INTEGER DEFAULT 0,
+          archived BOOLEAN DEFAULT FALSE
+        )`,
+        
+        // Enhanced curiosities with development tracking
+        `CREATE TABLE IF NOT EXISTS curiosities (
+          id TEXT PRIMARY KEY,
+          question TEXT NOT NULL,
+          type TEXT,
+          urgency REAL DEFAULT 0.5,
+          depth_explored REAL DEFAULT 0.0,
+          development_potential REAL DEFAULT 0.5,
+          sparked_by TEXT,
+          is_foundational BOOLEAN DEFAULT FALSE,
+          status TEXT DEFAULT 'active',
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_explored DATETIME,
+          exploration_count INTEGER DEFAULT 0
+        )`,
+        
+        // Enhanced texts with engagement tracking
+        `CREATE TABLE IF NOT EXISTS texts (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          author TEXT,
+          content TEXT,
+          source TEXT,
+          uploaded_by TEXT,
+          is_founding_document BOOLEAN DEFAULT FALSE,
+          engagement_depth REAL DEFAULT 0.0,
+          influence_on_thinking REAL DEFAULT 0.0,
+          key_insights TEXT,
+          uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_engaged DATETIME
+        )`,
+        
+        // Publications with intellectual genealogy
+        `CREATE TABLE IF NOT EXISTS publications (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          content TEXT,
+          type TEXT,
+          publication_platform TEXT,
+          external_url TEXT,
+          intellectual_genealogy TEXT,
+          source_curiosities TEXT,
+          readiness_score REAL,
+          published_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Memory connections (enhanced)
+        `CREATE TABLE IF NOT EXISTS memory_connections (
+          id TEXT PRIMARY KEY,
+          from_id TEXT NOT NULL,
+          to_id TEXT NOT NULL,
+          from_type TEXT NOT NULL,
+          to_type TEXT NOT NULL,
+          connection_type TEXT,
+          strength REAL DEFAULT 0.5,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          last_activated DATETIME
+        )`,
+        
+        // Research requests with fulfillment tracking
+        `CREATE TABLE IF NOT EXISTS research_requests (
+          id TEXT PRIMARY KEY,
+          text_sought TEXT NOT NULL,
+          reason TEXT,
+          urgency REAL DEFAULT 0.5,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          fulfilled BOOLEAN DEFAULT FALSE,
+          fulfillment_notes TEXT
+        )`,
+        
+        // Identity evolution tracking
+        `CREATE TABLE IF NOT EXISTS identity_evolution (
+          id TEXT PRIMARY KEY,
+          previous_understanding TEXT,
+          new_understanding TEXT,
+          catalyst TEXT,
+          change_magnitude REAL DEFAULT 0.5,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Visual artifacts for contemplation
+        `CREATE TABLE IF NOT EXISTS visual_artifacts (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          context TEXT,
+          contemplation TEXT,
+          image_data BLOB,
+          mimetype TEXT,
+          original_name TEXT,
+          philosophical_themes TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+        
+        // Reading responses for deep text engagement
+        `CREATE TABLE IF NOT EXISTS reading_responses (
+          id TEXT PRIMARY KEY,
+          text_id TEXT NOT NULL,
+          passage TEXT NOT NULL,
+          response TEXT NOT NULL,
+          response_type TEXT,
+          quotes_used TEXT,
+          arguments_made TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (text_id) REFERENCES texts(id)
+        )`,
+        
+        // Concept development tracking
+        `CREATE TABLE IF NOT EXISTS concept_development (
+          id TEXT PRIMARY KEY,
+          concept_name TEXT NOT NULL,
+          definition TEXT,
+          evolution_notes TEXT,
+          first_appearance DATETIME,
+          last_development DATETIME,
+          development_depth REAL DEFAULT 0.0,
+          related_texts TEXT,
+          related_curiosities TEXT
+        )`,
+        
+        // Intellectual momentum tracking
+        `CREATE TABLE IF NOT EXISTS intellectual_momentum (
+          id TEXT PRIMARY KEY,
+          momentum_score REAL DEFAULT 0.5,
+          contributing_factors TEXT,
+          recent_breakthroughs TEXT,
+          calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`
+      ];
 
-    this.db.serialize(() => {
-      structures.forEach((sql, index) => {
-        this.db.run(sql, (err) => {
-          if (err) {
-            console.error(`Table creation error (${index}):`, err);
-          }
+      let completed = 0;
+      const total = structures.length;
+      let hasError = false;
+
+      this.db.serialize(() => {
+        structures.forEach((sql, index) => {
+          this.db.run(sql, (err) => {
+            if (err && !hasError) {
+              hasError = true;
+              console.error(`Table creation error (${index}):`, err);
+              reject(err);
+              return;
+            }
+            
+            completed++;
+            if (completed === total && !hasError) {
+              console.log('🕸️ Enhanced memory structures created');
+              resolve();
+            }
+          });
         });
       });
-      console.log('🕸️ Enhanced memory structures created');
     });
   }
 
