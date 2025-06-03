@@ -1,5 +1,5 @@
 // src/clients/FirecrawlClient.js
-const { FirecrawlApp } = require('@mendable/firecrawl-js');
+const FirecrawlApp = require('@mendable/firecrawl-js').default;
 
 class FirecrawlClient {
   constructor() {

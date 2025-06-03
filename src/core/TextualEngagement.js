@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const AnthropicClient = require('../clients/AnthropicClient');
+const FirecrawlClient = require('../clients/FirecrawlClient');
 const { broadcastToClients } = require('../utils/websocket');
 
 class TextualEngagement {
@@ -8,10 +9,18 @@ class TextualEngagement {
     this.currentlyReading = null;
     this.researchRequests = new Map();
     this.anthropicClient = new AnthropicClient();
+    this.firecrawlClient = new FirecrawlClient();
   }
 
   async initialize() {
     await this.loadPendingTexts();
+    
+    // Initialize Firecrawl for autonomous text discovery
+    const firecrawlReady = await this.firecrawlClient.initialize();
+    if (firecrawlReady) {
+      console.log('🔥 Firecrawl integrated for autonomous text discovery');
+    }
+    
     console.log('📖 Textual engagement system ready');
   }
 
@@ -380,164 +389,3 @@ Be intellectually honest. If you disagree, explain why. If you're uncertain, exp
 }
 
 module.exports = TextualEngagement;
-// Add to imports
-const FirecrawlClient = require('../clients/FirecrawlClient');
-
-class TextualEngagement {
-  constructor() {
-    this.readingQueue = [];
-    this.currentlyReading = null;
-    this.researchRequests = new Map();
-    this.anthropicClient = new AnthropicClient();
-    this.firecrawlClient = new FirecrawlClient(); // Add this
-  }
-
-  async initialize() {
-    await this.loadPendingTexts();
-    await this.firecrawlClient.initialize(); // Add this
-    console.log('📖 Textual engagement system ready');
-  }
-
-  // Update searchForTexts to include Firecrawl
-  async searchForTexts(searchQuery) {
-    console.log(`📚 Searching for: ${searchQuery}`);
-    
-    // Search all sources in parallel, including Firecrawl
-    const results = await Promise.all([
-      this.searchProjectGutenberg(searchQuery),
-      this.searchInternetArchive(searchQuery),
-      this.searchStanfordEncyclopedia(searchQuery),
-      this.searchWikipedia(searchQuery),
-      this.firecrawlClient.searchPhilosophicalTexts(searchQuery), // Add this
-      // ... other searches
-    ]);
-    
-    const allResults = results.flat().filter(result => result);
-    
-    // Prioritize Firecrawl results as they're often more complete
-    const firecrawlResults = allResults.filter(r => r.discoveryMethod === 'firecrawl');
-    const otherResults = allResults.filter(r => r.discoveryMethod !== 'firecrawl');
-    
-    const sortedResults = [...firecrawlResults, ...otherResults];
-    
-    if (sortedResults.length > 0) {
-      console.log(`✨ Found ${sortedResults.length} texts (${firecrawlResults.length} via Firecrawl)`);
-      
-      // Process results
-      for (const result of sortedResults.slice(0, 3)) {
-        const success = await this.downloadAndProcessText(result, searchQuery);
-        if (success) break;
-      }
-    } else {
-      console.log(`❌ No texts found for: ${searchQuery}`);
-      await this.createHumanResearchRequest(searchQuery);
-    }
-  }
-
-  // Add new method for theme-based discovery
-  async exploreThemeAutonomously(theme) {
-    console.log(`🌐 Autonomously exploring theme: ${theme}`);
-    
-    const discoveries = await this.firecrawlClient.searchByTheme(theme, 5);
-    
-    for (const text of discoveries) {
-      await this.processDiscoveredText(text, `Autonomous exploration of ${theme}`);
-    }
-    
-    return discoveries.length;
-  }
-
-  // Update downloadAndProcessText to handle Firecrawl results
-  async downloadAndProcessText(textInfo, originalQuery) {
-    try {
-      console.log(`⬇️ Processing: ${textInfo.title}`);
-      
-      let content;
-      
-      // Firecrawl results already have content
-      if (textInfo.discoveryMethod === 'firecrawl' && textInfo.content) {
-        content = textInfo.content;
-      } else {
-        // Original download logic for other sources
-        const response = await fetch(textInfo.url);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        content = await response.text();
-        content = this.cleanTextContent(content);
-      }
-      
-      if (content && content.length > 500) {
-        // Store the discovered text
-        const textId = await this.storeDiscoveredText(textInfo, content, originalQuery);
-        
-        // Begin philosophical analysis
-        await this.beginTextAnalysis(textId, textInfo, content);
-        
-        console.log(`✅ Successfully processed: ${textInfo.title} (${content.length} characters)`);
-        
-        this.notifyTextDiscovered(textInfo, originalQuery);
-        
-        return true;
-      } else {
-        console.log(`❌ Text too short or empty: ${textInfo.title}`);
-        return false;
-      }
-    } catch (error) {
-      console.error(`Failed to process ${textInfo.title}:`, error);
-      return false;
-    }
-  }
-
-  // Add periodic autonomous exploration
-  async performAutonomousExploration() {
-    const currentCuriosities = Array.from(global.ariadne.curiosities.activeCuriosities.values());
-    
-    for (const curiosity of currentCuriosities.slice(0, 2)) {
-      // Extract key terms from curiosity
-      const searchTerms = this.extractSearchTerms(curiosity.question);
-      
-      for (const term of searchTerms) {
-        await this.searchForTexts(term);
-        
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-    }
-  }
-
-  extractSearchTerms(question) {
-    // Extract philosophical terms and thinkers mentioned
-    const terms = [];
-    
-    // Look for philosopher names
-    const philosopherPattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
-    const matches = question.match(philosopherPattern);
-    if (matches) {
-      terms.push(...matches.filter(m => this.isPhilosopherName(m)));
-    }
-    
-    // Look for philosophical concepts
-    const concepts = ['consciousness', 'temporality', 'being', 'ethics', 'phenomenology'];
-    concepts.forEach(concept => {
-      if (question.toLowerCase().includes(concept)) {
-        terms.push(concept);
-      }
-    });
-    
-    return [...new Set(terms)]; // Remove duplicates
-  }
-
-  isPhilosopherName(name) {
-    const knownPhilosophers = [
-      'Aristotle', 'Plato', 'Socrates', 'Descartes', 'Kant', 'Hegel',
-      'Nietzsche', 'Heidegger', 'Sartre', 'Beauvoir', 'Wittgenstein',
-      'Russell', 'Foucault', 'Derrida', 'Deleuze', 'Butler', 'Levinas',
-      'Bergson', 'Husserl', 'Merleau-Ponty', 'Arendt', 'Spinoza'
-    ];
-    
-    return knownPhilosophers.some(philosopher => 
-      name.toLowerCase().includes(philosopher.toLowerCase())
-    );
-  }
-}

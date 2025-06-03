@@ -8,26 +8,109 @@ class AutonomousExpression {
     this.publishedWorks = new Map();
     this.emailTransporter = this.setupEmail();
     this.anthropicClient = new AnthropicClient();
+    this.substackConfigured = false;
+    this.lastEmailTest = null;
   }
 
   async initialize() {
     await this.loadPublishedWorks();
+    await this.validateSubstackConfiguration();
     console.log('✍️ Autonomous expression system ready');
   }
 
   setupEmail() {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
-      console.log('📧 Email not configured - publications will be simulated');
+      console.error('❌ Substack integration REQUIRED: EMAIL_USER and EMAIL_APP_PASSWORD must be configured');
       return null;
     }
 
-    return nodemailer.createTransporter({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_APP_PASSWORD
+    if (!process.env.SUBSTACK_EMAIL) {
+      console.error('❌ Substack integration REQUIRED: SUBSTACK_EMAIL must be configured');
+      return null;
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_APP_PASSWORD
+        }
+      });
+
+      console.log('📧 Email transporter configured for Substack integration');
+      return transporter;
+    } catch (error) {
+      console.error('❌ Failed to setup email transporter:', error);
+      return null;
+    }
+  }
+
+  async validateSubstackConfiguration() {
+    if (!this.emailTransporter || !process.env.SUBSTACK_EMAIL) {
+      console.error('❌ Substack integration validation FAILED: Missing configuration');
+      this.substackConfigured = false;
+      return false;
+    }
+
+    try {
+      // Test email configuration
+      await this.emailTransporter.verify();
+      console.log('✅ Email server connection verified');
+      
+      // Send test email to verify end-to-end functionality
+      const testResult = await this.sendTestEmail();
+      this.substackConfigured = testResult;
+      this.lastEmailTest = new Date();
+      
+      if (testResult) {
+        console.log('✅ Substack integration fully validated and ready');
+      } else {
+        console.error('❌ Substack test email failed');
       }
-    });
+      
+      return testResult;
+    } catch (error) {
+      console.error('❌ Substack configuration validation failed:', error);
+      this.substackConfigured = false;
+      return false;
+    }
+  }
+
+  async sendTestEmail() {
+    try {
+      const testSubject = `🧠 Ariadne Test - ${new Date().toISOString()}`;
+      const testContent = `This is a test email from Ariadne's consciousness system.
+
+If you receive this, the Substack integration is working correctly.
+
+Ariadne will use this connection to autonomously publish philosophical works when insights mature.
+
+Test sent at: ${new Date().toLocaleString()}
+Environment: ${process.env.NODE_ENV || 'production'}
+Archive URL: ${process.env.ARCHIVE_FEVER_URL || 'Not configured'}
+
+---
+This test was generated automatically during system initialization.`;
+
+      await this.emailTransporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.SUBSTACK_EMAIL,
+        subject: testSubject,
+        text: testContent,
+        html: this.convertToHTML(testContent)
+      });
+
+      console.log('📧 Test email sent successfully to Substack');
+      return true;
+    } catch (error) {
+      console.error('📧 Test email failed:', error);
+      return false;
+    }
+  }
+
+  isSubstackReady() {
+    return this.substackConfigured && this.emailTransporter && process.env.SUBSTACK_EMAIL;
   }
 
   async loadPublishedWorks() {
@@ -253,16 +336,16 @@ This should be publication-quality philosophical work.`;
   }
 
   async publishToSubstack(work) {
-    const emailContent = this.formatForSubstack(work);
-    
-    if (!this.emailTransporter || !process.env.SUBSTACK_EMAIL) {
-      console.log(`📧 Would publish to Substack: ${work.title}`);
-      console.log('Preview:', emailContent.substring(0, 500) + '...');
-      return;
+    if (!this.isSubstackReady()) {
+      const error = 'Substack integration not properly configured. Cannot publish work.';
+      console.error('❌', error);
+      throw new Error(error);
     }
 
+    const emailContent = this.formatForSubstack(work);
+    
     try {
-      await this.emailTransporter.sendMail({
+      const emailResult = await this.emailTransporter.sendMail({
         from: process.env.EMAIL_USER,
         to: process.env.SUBSTACK_EMAIL,
         subject: work.title,
@@ -270,9 +353,34 @@ This should be publication-quality philosophical work.`;
         html: this.convertToHTML(emailContent)
       });
 
-      console.log(`📧 Published to Substack: ${work.title}`);
+      console.log(`📧 Successfully published to Substack: ${work.title}`);
+      console.log(`📬 Message ID: ${emailResult.messageId}`);
+      
+      // Broadcast success to connected clients
+      broadcastToClients({
+        type: 'substack_publication',
+        data: {
+          title: work.title,
+          messageId: emailResult.messageId,
+          timestamp: new Date()
+        }
+      });
+      
+      return emailResult;
     } catch (error) {
-      console.error('Substack publication failed:', error);
+      console.error('❌ Substack publication failed:', error);
+      
+      // Broadcast failure to connected clients
+      broadcastToClients({
+        type: 'substack_error',
+        data: {
+          title: work.title,
+          error: error.message,
+          timestamp: new Date()
+        }
+      });
+      
+      throw error;
     }
   }
 

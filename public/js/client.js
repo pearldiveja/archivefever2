@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadSystemStatus();
     setupFormHandlers();
     updateTemporalExistence();
+    setTimeout(checkSubstackStatus, 2000);
 });
 
 // WebSocket Management
@@ -429,3 +430,119 @@ function showNewPublication(publication) {
 // Export functions for global access
 window.closeModal = closeModal;
 window.showModal = showModal;
+
+// Substack Integration Functions
+async function checkSubstackStatus() {
+    const indicator = document.getElementById('substack-indicator');
+    const statusText = document.getElementById('substack-status-text');
+    const details = document.getElementById('substack-details');
+    
+    try {
+        statusText.textContent = 'Checking...';
+        indicator.style.background = '#ffa500';
+        
+        const response = await fetch('/api/substack-status');
+        const status = await response.json();
+        
+        if (status.ready) {
+            indicator.style.background = '#00ff00';
+            statusText.textContent = '✅ Substack integration ready and validated';
+            details.innerHTML = `
+                📧 Email configured: ${status.emailUser || 'Not set'}<br>
+                📮 Substack email: ${status.substackEmail || 'Not set'}<br>
+                📊 Published works: ${status.publishedCount}<br>
+                🧪 Last test: ${status.lastTest ? new Date(status.lastTest).toLocaleString() : 'Never'}
+            `;
+        } else if (status.configured) {
+            indicator.style.background = '#ffa500';
+            statusText.textContent = '⚠️ Configured but not validated';
+            details.innerHTML = `
+                Configuration exists but test failed.<br>
+                📧 Email: ${status.emailUser || 'Missing'}<br>
+                📮 Substack: ${status.substackEmail || 'Missing'}<br>
+                Try testing the email connection.
+            `;
+        } else {
+            indicator.style.background = '#ff0000';
+            statusText.textContent = '❌ Substack integration not configured';
+            details.innerHTML = `
+                Substack integration is REQUIRED for Archive Fever AI.<br>
+                Please configure EMAIL_USER, EMAIL_APP_PASSWORD, and SUBSTACK_EMAIL in Railway environment variables.
+            `;
+        }
+    } catch (error) {
+        indicator.style.background = '#ff0000';
+        statusText.textContent = '❌ Error checking status';
+        details.textContent = 'Failed to check Substack status: ' + error.message;
+    }
+}
+
+async function testSubstack() {
+    const resultDiv = document.getElementById('substack-test-result');
+    const button = event.target;
+    const originalText = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '🔄 Testing...';
+        
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = 'rgba(255, 165, 0, 0.1)';
+        resultDiv.style.border = '1px solid #ffa500';
+        resultDiv.innerHTML = '📧 Sending test email to Substack...';
+        
+        const response = await fetch('/api/test-substack', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resultDiv.style.background = 'rgba(0, 255, 0, 0.1)';
+            resultDiv.style.border = '1px solid #00ff00';
+            resultDiv.innerHTML = `
+                ✅ <strong>Test email sent successfully!</strong><br>
+                <div style="margin-top: 10px; font-size: 0.9rem;">
+                    Check your Substack email inbox for the test message.<br>
+                    Time: ${new Date(result.timestamp).toLocaleString()}
+                </div>
+            `;
+            
+            // Refresh status after successful test
+            setTimeout(checkSubstackStatus, 1000);
+        } else {
+            resultDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+            resultDiv.style.border = '1px solid #ff0000';
+            resultDiv.innerHTML = `
+                ❌ <strong>Test email failed</strong><br>
+                <div style="margin-top: 10px; font-size: 0.9rem;">
+                    Error: ${result.error}<br>
+                    Check your Gmail App Password and Substack email configuration.
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+        resultDiv.style.border = '1px solid #ff0000';
+        resultDiv.innerHTML = `
+            ❌ <strong>Network error</strong><br>
+            <div style="margin-top: 10px; font-size: 0.9rem;">
+                ${error.message}
+            </div>
+        `;
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+        
+        // Hide result after 30 seconds
+        setTimeout(() => {
+            resultDiv.style.display = 'none';
+        }, 30000);
+    }
+}
+
+// Export Substack functions for global access
+window.testSubstack = testSubstack;
+window.checkSubstackStatus = checkSubstackStatus;
