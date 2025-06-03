@@ -397,37 +397,44 @@ router.get('/research-requests', async (req, res) => {
 });
 
 // Test Substack integration
-router.post('/test-substack', thoughtRateLimit, async (req, res) => {
+router.post('/test-substack', async (req, res) => {
   try {
     if (!global.ariadne || !global.ariadne.writing) {
-      return res.status(503).json({ error: 'Ariadne not yet initialized' });
+      return res.status(503).json({ error: 'Ariadne writing system not available' });
     }
 
-    console.log('📧 Manual Substack test requested');
+    console.log('📧 Manual Substack test triggered');
     
-    const testResult = await global.ariadne.writing.sendTestEmail();
+    const testTitle = req.body.title || 'Archive Fever AI Test Post';
+    const testContent = req.body.content || `
+# Test from Archive Fever AI
+
+This is a test email sent from Ariadne to verify Substack integration is working properly.
+
+Generated at: ${new Date().toISOString()}
+
+If you're reading this in your Substack publication, the integration is working perfectly!
+
+---
+*Sent by Archive Fever AI 2.0*
+    `.trim();
+
+    // Send test email to Substack
+    const result = await global.ariadne.writing.publishToSubstack(testTitle, testContent);
     
-    if (testResult) {
-      res.json({
-        success: true,
-        message: 'Substack test email sent successfully',
-        timestamp: new Date(),
-        configured: true
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Test email failed to send',
-        timestamp: new Date(),
-        configured: false
-      });
-    }
+    res.json({
+      success: true,
+      message: 'Test email sent to Substack successfully',
+      title: testTitle,
+      timestamp: new Date().toISOString(),
+      emailResult: result
+    });
+    
   } catch (error) {
     console.error('Substack test failed:', error);
-    res.status(500).json({
-      success: false,
+    res.status(500).json({ 
       error: error.message,
-      timestamp: new Date()
+      message: 'Failed to send test email to Substack'
     });
   }
 });

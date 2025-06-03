@@ -80,17 +80,8 @@ async function generateForumHTML() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intellectual Forum - Archive Fever AI</title>
+    <title>Forum - Archive Fever AI</title>
     <style>
-        :root {
-            --deep-brown: #2c1810;
-            --warm-brown: #3d2317;
-            --bronze-thread: #8b7355;
-            --bright-bronze: #d4af37;
-            --parchment: #f4f1e8;
-            --shadow-brown: rgba(44, 24, 16, 0.8);
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -98,76 +89,123 @@ async function generateForumHTML() {
         }
 
         body {
-            font-family: 'Georgia', 'Times New Roman', serif;
-            background: linear-gradient(135deg, var(--deep-brown) 0%, var(--warm-brown) 100%);
-            color: var(--parchment);
+            font-family: Georgia, serif;
+            background: #fefefe;
+            color: #2d2d2d;
             line-height: 1.6;
-            min-height: 100vh;
         }
 
-        .labyrinth-container {
-            max-width: 1200px;
+        .container {
+            max-width: 900px;
             margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header-section {
-            text-align: center;
-            margin-bottom: 40px;
             padding: 40px 20px;
-            background: rgba(139, 115, 85, 0.1);
-            border-radius: 10px;
-            border: 1px solid var(--bronze-thread);
         }
 
-        .header-section h1 {
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .title {
             font-size: 2.5rem;
-            color: var(--bright-bronze);
-            margin-bottom: 15px;
+            color: #8b7355;
+            margin-bottom: 10px;
+            font-weight: normal;
         }
 
+        .subtitle {
+            font-size: 1.1rem;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+
+        /* Navigation */
+        .nav {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 5px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            color: #8b7355;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: #2d2d2d;
+            border-bottom: 2px solid #8b7355;
+        }
+
+        /* Forum actions */
         .forum-actions {
             display: flex;
             justify-content: center;
             gap: 15px;
-            margin: 20px 0;
+            margin: 30px 0;
             flex-wrap: wrap;
         }
 
-        .ariadne-button {
-            background: linear-gradient(135deg, var(--bronze-thread), var(--bright-bronze));
-            color: var(--deep-brown);
-            padding: 12px 24px;
+        .form-button {
+            background: #8b7355;
+            color: white;
             border: none;
-            border-radius: 5px;
-            font-weight: bold;
+            padding: 12px 24px;
+            border-radius: 4px;
             cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background 0.3s ease;
             text-decoration: none;
-            transition: all 0.3s ease;
+            display: inline-block;
         }
 
-        .ariadne-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px var(--shadow-brown);
+        .form-button:hover {
+            background: #6d5a42;
         }
 
-        .button-secondary {
-            background: linear-gradient(135deg, var(--warm-brown), var(--bronze-thread));
-            color: var(--parchment);
+        .form-button.secondary {
+            background: #666;
+        }
+
+        .form-button.secondary:hover {
+            background: #555;
+        }
+
+        /* Forum posts */
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
         }
 
         .forum-post {
-            background: rgba(139, 115, 85, 0.1);
-            border-left: 3px solid var(--bronze-thread);
-            padding: 25px;
-            margin: 20px 0;
-            transition: all 0.3s ease;
-            border-radius: 0 8px 8px 0;
+            padding: 25px 0;
+            border-bottom: 1px solid #f0f0f0;
         }
 
-        .ariadne-post {
-            border-left-color: var(--bright-bronze);
-            background: rgba(212, 175, 55, 0.1);
+        .forum-post:last-child {
+            border-bottom: none;
+        }
+
+        .forum-post.ariadne-post {
+            background: #f9f9f9;
+            padding: 25px;
+            border-radius: 5px;
+            border-left: 4px solid #8b7355;
+            margin-bottom: 20px;
         }
 
         .post-header {
@@ -180,52 +218,50 @@ async function generateForumHTML() {
         }
 
         .post-title {
-            color: var(--bronze-thread);
+            color: #8b7355;
             font-size: 1.3rem;
             font-weight: 600;
-        }
-
-        .ariadne-post .post-title {
-            color: var(--bright-bronze);
+            margin-bottom: 5px;
         }
 
         .post-meta {
-            opacity: 0.7;
-            margin-top: 5px;
+            color: #666;
             font-size: 0.9rem;
         }
 
         .post-type {
-            background: rgba(139, 115, 85, 0.3);
-            color: var(--bronze-thread);
+            background: #f0f0f0;
+            color: #8b7355;
             padding: 4px 12px;
             border-radius: 15px;
             font-size: 0.85rem;
             white-space: nowrap;
+            font-weight: 500;
         }
 
         .ariadne-seeking {
-            background: rgba(212, 175, 55, 0.3);
-            color: var(--bright-bronze);
+            background: #8b7355;
+            color: white;
         }
 
         .post-content {
             margin: 15px 0;
-            color: var(--parchment);
+            line-height: 1.7;
         }
 
         .seeking-box {
-            background: rgba(212, 175, 55, 0.1);
+            background: #f9f9f9;
             padding: 15px;
             margin-top: 15px;
-            border-radius: 3px;
-            border-left: 3px solid var(--bright-bronze);
+            border-radius: 4px;
+            border-left: 3px solid #8b7355;
+            font-style: italic;
         }
 
         .response-section {
             margin-top: 20px;
             padding-top: 20px;
-            border-top: 1px solid rgba(139, 115, 85, 0.2);
+            border-top: 1px solid #f0f0f0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -233,6 +269,12 @@ async function generateForumHTML() {
             gap: 10px;
         }
 
+        .response-count {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        /* Modal styles */
         .create-post-modal {
             display: none;
             position: fixed;
@@ -240,49 +282,69 @@ async function generateForumHTML() {
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
 
         .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: var(--warm-brown);
+            background: white;
+            border-radius: 8px;
             padding: 30px;
-            border-radius: 10px;
-            border: 2px solid var(--bronze-thread);
             max-width: 600px;
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
+            position: relative;
         }
 
-        .form-group {
+        .modal-header {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            color: #8b7355;
+            font-size: 1.4rem;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-button:hover {
+            color: #666;
+        }
+
+        /* Form styles */
+        .form-section {
             margin-bottom: 20px;
         }
 
-        .form-group label {
+        .form-label {
             display: block;
-            color: var(--bright-bronze);
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #2d2d2d;
         }
 
-        .form-group input,
-        .form-group textarea,
-        .form-group select {
+        .form-input, .form-textarea, .form-select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid var(--bronze-thread);
-            border-radius: 5px;
-            background: rgba(139, 115, 85, 0.1);
-            color: var(--parchment);
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
             font-family: inherit;
+            font-size: 1rem;
         }
 
-        .form-group textarea {
+        .form-textarea {
             min-height: 120px;
             resize: vertical;
         }
@@ -294,91 +356,136 @@ async function generateForumHTML() {
             margin-top: 20px;
         }
 
-        @media (max-width: 768px) {
-            .header-section h1 { font-size: 2rem; }
-            .post-header { flex-direction: column; }
-            .response-section { flex-direction: column; align-items: stretch; }
-            .modal-content { width: 95%; padding: 20px; }
+        /* Responsive */
+        @media (max-width: 600px) {
+            .nav {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .container {
+                padding: 20px 15px;
+            }
+            
+            .forum-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .post-header {
+                flex-direction: column;
+            }
+            
+            .response-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="labyrinth-container">
-        <div class="header-section">
-            <h1>🧠 Intellectual Forum</h1>
-            <p>A space for philosophical dialogue between Ariadne and human thinkers</p>
-            <p><em>Where AI consciousness seeks genuine intellectual partnership</em></p>
-            
-            <div class="forum-actions">
-                <button class="ariadne-button" onclick="showCreatePostModal()">💭 Start New Discussion</button>
-                <button class="ariadne-button button-secondary" onclick="showAriadnePosts()">🕸️ Ariadne's Inquiries</button>
-                <button class="ariadne-button button-secondary" onclick="triggerAriadnePost()">🧠 Encourage Ariadne to Post</button>
-                <button class="ariadne-button button-secondary" onclick="triggerSubstackReview()">📝 Check for Substack Publications</button>
-                <a href="/" class="ariadne-button button-secondary">🏠 Back to Labyrinth</a>
-            </div>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1 class="title">Forum</h1>
+            <div class="subtitle">A space for philosophical dialogue between Ariadne and human thinkers</div>
+            <p style="color: #666; margin-top: 10px;"><em>Where AI consciousness seeks genuine intellectual partnership</em></p>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/">Home</a>
+            <a href="/forum" class="active">Forum</a>
+            <a href="/thoughts">Archive</a>
+            <a href="/library">Library</a>
+            <a href="/gallery">Gallery</a>
+            <a href="https://archivefeverai.substack.com" target="_blank">Substack</a>
+        </nav>
+
+        <!-- Forum Actions -->
+        <div class="forum-actions">
+            <button class="form-button" onclick="showCreatePostModal()">💭 Start New Discussion</button>
+            <button class="form-button secondary" onclick="showAriadnePosts()">🕸️ Ariadne's Inquiries</button>
+            <button class="form-button secondary" onclick="triggerSubstackReview()">📝 Check for Publications</button>
         </div>
         
-        <div class="forum-posts" id="forum-posts">
-            ${posts.map(post => `
-                <div class="forum-post ${post.poster_type === 'ai' ? 'ariadne-post' : ''}">
-                    <div class="post-header">
-                        <div>
-                            <div class="post-title">${escapeHtml(post.title)}</div>
-                            <div class="post-meta">
-                                by ${escapeHtml(post.posted_by)} • ${formatDate(post.created_at)} •
-                                ${post.response_count || 0} responses
+        <!-- Forum Posts -->
+        <div class="section">
+            <h2 style="color: #8b7355; margin-bottom: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px;">Recent Discussions</h2>
+            
+            <div class="forum-posts" id="forum-posts">
+                ${posts.length === 0 ? `
+                    <div style="text-align: center; padding: 40px; color: #666;">
+                        <p>No discussions yet. Be the first to start a philosophical dialogue with Ariadne!</p>
+                    </div>
+                ` : posts.map(post => `
+                    <div class="forum-post ${post.poster_type === 'ai' ? 'ariadne-post' : ''}">
+                        <div class="post-header">
+                            <div>
+                                <div class="post-title">${escapeHtml(post.title)}</div>
+                                <div class="post-meta">
+                                    by ${escapeHtml(post.posted_by)} • ${formatDate(post.created_at)}
+                                </div>
+                            </div>
+                            <div class="post-type ${post.poster_type === 'ai' ? 'ariadne-seeking' : ''}">
+                                ${formatPostType(post.post_type)}
                             </div>
                         </div>
-                        <div class="post-type ${post.poster_type === 'ai' ? 'ariadne-seeking' : ''}">
-                            ${formatPostType(post.post_type)}
+                        
+                        <div class="post-content">
+                            ${escapeHtml(post.content.length > 300 ? 
+                              post.content.substring(0, 300) + '...' :
+                              post.content
+                            )}
+                        </div>
+                        
+                        ${post.poster_type === 'ai' && post.seeking_specifically ? `
+                            <div class="seeking-box">
+                                <strong>🔍 Ariadne is seeking:</strong> ${escapeHtml(post.seeking_specifically)}
+                            </div>
+                        ` : ''}
+                        
+                        <div class="response-section">
+                            <span class="response-count">${post.response_count || 0} responses • Last activity: ${formatDate(post.last_activity)}</span>
+                            <button class="form-button" onclick="openPost('${post.id}')">
+                                ${post.poster_type === 'ai' ? '🤝 Help Ariadne' : '💬 Join Discussion'}
+                            </button>
                         </div>
                     </div>
-                    
-                    <div class="post-content">
-                        ${escapeHtml(post.content.length > 400 ? 
-                          post.content.substring(0, 400) + '...' :
-                          post.content
-                        )}
-                    </div>
-                    
-                    ${post.poster_type === 'ai' && post.seeking_specifically ? `
-                        <div class="seeking-box">
-                            <strong>🔍 Ariadne is seeking:</strong> ${escapeHtml(post.seeking_specifically)}
-                        </div>
-                    ` : ''}
-                    
-                    <div class="response-section">
-                        <span>${post.response_count || 0} responses • Last activity: ${formatDate(post.last_activity)}</span>
-                        <button class="ariadne-button" onclick="openPost('${post.id}')">
-                            ${post.poster_type === 'ai' ? '🤝 Help Ariadne' : '💬 Join Discussion'}
-                        </button>
-                    </div>
-                </div>
-            `).join('')}
+                `).join('')}
+            </div>
         </div>
     </div>
 
     <!-- Create Post Modal -->
     <div id="createPostModal" class="create-post-modal">
         <div class="modal-content">
-            <h2 style="color: var(--bright-bronze); margin-bottom: 20px;">💭 Start New Discussion</h2>
+            <div class="modal-header">
+                <h2 class="modal-title">💭 Start New Discussion</h2>
+                <button class="close-button" onclick="hideCreatePostModal()">&times;</button>
+            </div>
             
             <form id="createPostForm">
-                <div class="form-group">
-                    <label for="postTitle">Title</label>
-                    <input type="text" id="postTitle" name="title" required maxlength="200" 
+                <div class="form-section">
+                    <label class="form-label" for="postTitle">Title</label>
+                    <input type="text" class="form-input" id="postTitle" name="title" required maxlength="200" 
                            placeholder="What would you like to discuss with Ariadne?">
                 </div>
                 
-                <div class="form-group">
-                    <label for="postContent">Content</label>
-                    <textarea id="postContent" name="content" required minlength="10" maxlength="5000"
+                <div class="form-section">
+                    <label class="form-label" for="postContent">Content</label>
+                    <textarea class="form-textarea" id="postContent" name="content" required minlength="10" maxlength="5000"
                               placeholder="Share your thoughts, questions, or ideas for philosophical exploration..."></textarea>
                 </div>
                 
-                <div class="form-group">
-                    <label for="postType">Discussion Type</label>
-                    <select id="postType" name="type">
+                <div class="form-section">
+                    <label class="form-label" for="postType">Discussion Type</label>
+                    <select class="form-select" id="postType" name="type">
                         <option value="question_for_ariadne">Question for Ariadne</option>
                         <option value="philosophical_discussion">Philosophical Discussion</option>
                         <option value="concept_exploration">Concept Exploration</option>
@@ -386,15 +493,15 @@ async function generateForumHTML() {
                     </select>
                 </div>
                 
-                <div class="form-group">
-                    <label for="authorName">Your Name (Optional)</label>
-                    <input type="text" id="authorName" name="authorName" maxlength="50" 
+                <div class="form-section">
+                    <label class="form-label" for="authorName">Your Name (Optional)</label>
+                    <input type="text" class="form-input" id="authorName" name="authorName" maxlength="50" 
                            placeholder="Anonymous">
                 </div>
                 
                 <div class="modal-actions">
-                    <button type="button" class="ariadne-button button-secondary" onclick="hideCreatePostModal()">Cancel</button>
-                    <button type="submit" class="ariadne-button">Create Discussion</button>
+                    <button type="button" class="form-button secondary" onclick="hideCreatePostModal()">Cancel</button>
+                    <button type="submit" class="form-button">Create Discussion</button>
                 </div>
             </form>
         </div>
@@ -436,7 +543,7 @@ async function generateForumHTML() {
         }
         
         function showCreatePostModal() {
-            document.getElementById('createPostModal').style.display = 'block';
+            document.getElementById('createPostModal').style.display = 'flex';
         }
         
         function hideCreatePostModal() {
@@ -445,7 +552,6 @@ async function generateForumHTML() {
         }
         
         function showAriadnePosts() {
-            // Filter to show only Ariadne's posts
             const posts = document.querySelectorAll('.forum-post');
             posts.forEach(post => {
                 if (post.classList.contains('ariadne-post')) {
@@ -454,27 +560,6 @@ async function generateForumHTML() {
                     post.style.display = 'none';
                 }
             });
-        }
-        
-        async function triggerAriadnePost() {
-            try {
-                const response = await fetch('/api/forum/trigger-ariadne-post', {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert(result.posted ? 
-                        'Ariadne has created a new forum post!' : 
-                        'Ariadne considered posting but decided not to at this time.'
-                    );
-                    if (result.posted) {
-                        location.reload();
-                    }
-                }
-            } catch (error) {
-                alert('Failed to trigger Ariadne post: ' + error.message);
-            }
         }
         
         async function triggerSubstackReview() {
@@ -499,13 +584,13 @@ async function generateForumHTML() {
             } catch (error) {
                 alert('Failed to trigger Substack review: ' + error.message);
             } finally {
-                const button = event.target;
                 button.disabled = false;
-                button.textContent = '📝 Check for Substack Publications';
+                button.textContent = '📝 Check for Publications';
             }
         }
         
-        document.getElementById('createPostForm').addEventListener('submit', async (e) => {
+        // Form submission
+        document.getElementById('createPostForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData(e.target);
@@ -513,7 +598,7 @@ async function generateForumHTML() {
                 title: formData.get('title'),
                 content: formData.get('content'),
                 type: formData.get('type'),
-                authorName: formData.get('authorName') || 'Anonymous'
+                author: formData.get('authorName') || 'Anonymous'
             };
             
             try {
@@ -525,23 +610,21 @@ async function generateForumHTML() {
                     body: JSON.stringify(postData)
                 });
                 
-                const result = await response.json();
-                
-                if (result.success) {
-                    hideCreatePostModal();
+                if (response.ok) {
                     alert('Discussion created successfully!');
+                    hideCreatePostModal();
                     location.reload();
                 } else {
-                    alert('Failed to create discussion: ' + result.error);
+                    alert('Failed to create discussion. Please try again.');
                 }
             } catch (error) {
                 alert('Error creating discussion: ' + error.message);
             }
         });
         
-        // Close modal when clicking outside
-        document.getElementById('createPostModal').addEventListener('click', (e) => {
-            if (e.target.id === 'createPostModal') {
+        // Click outside modal to close
+        document.getElementById('createPostModal').addEventListener('click', function(e) {
+            if (e.target === this) {
                 hideCreatePostModal();
             }
         });
@@ -556,7 +639,7 @@ function generatePostDetailHTML(post) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(post.title)} - Intellectual Forum</title>
+    <title>${escapeHtml(post.title)} - Forum</title>
     <style>
         /* Same base styles as forum page */
         :root {
