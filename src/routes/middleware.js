@@ -134,7 +134,7 @@ function requireAriadneAwake(req, res, next) {
 
 // Middleware to ensure enhanced features are available
 function requireEnhancedConsciousness(req, res, next) {
-  if (!global.ariadne?.intellectualMomentum !== undefined) {
+  if (global.ariadne?.intellectualMomentum === undefined) {
     return res.status(503).json({ 
       error: 'Enhanced consciousness features not available',
       message: 'This endpoint requires enhanced consciousness mode.'
