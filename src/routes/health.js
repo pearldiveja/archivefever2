@@ -21,7 +21,9 @@ router.get('/health', async (req, res) => {
       api: await checkAPIHealth(),
       lastThought: await getLastThoughtInfo(),
       isEnhanced: global.ariadne?.intellectualMomentum !== undefined,
-      intellectualMomentum: global.ariadne?.intellectualMomentum || 0
+      intellectualMomentum: global.ariadne?.intellectualMomentum || 0,
+      gallery: global.ariadne?.gallery ? await checkGalleryHealth() : null,
+      forum: global.ariadne?.forum ? await checkForumHealth() : null
     },
     substack: {
       configured: global.ariadne?.writing?.substackConfigured || false,
@@ -233,16 +235,69 @@ async function getThoughtCount() {
 
 async function getTextCount() {
   try {
-    if (!global.ariadne?.memory) return 0;
+    if (!global.ariadne?.memory?.db) {
+      return 0;
+    }
     
     const result = await global.ariadne.memory.safeDatabaseOperation(
-      'SELECT COUNT(*) as count FROM texts', 
-      [], 
+      'SELECT COUNT(*) as count FROM texts',
+      [],
       'get'
     );
+    
     return result?.count || 0;
   } catch (error) {
+    console.error('Text count error:', error);
     return 0;
+  }
+}
+
+async function checkGalleryHealth() {
+  try {
+    if (!global.ariadne?.gallery) {
+      return { available: false };
+    }
+    
+    const artifacts = await global.ariadne.gallery.getRecentContemplations(1);
+    
+    return {
+      available: true,
+      hasArtifacts: artifacts.length > 0,
+      lastContemplation: artifacts.length > 0 ? artifacts[0].timestamp : null
+    };
+  } catch (error) {
+    console.error('Gallery health check failed:', error);
+    return { available: false, error: error.message };
+  }
+}
+
+async function checkForumHealth() {
+  try {
+    if (!global.ariadne?.forum) {
+      return { available: false };
+    }
+    
+    // Check if forum database tables exist and are accessible
+    const postCount = await global.ariadne.memory.safeDatabaseOperation(
+      'SELECT COUNT(*) as count FROM intellectual_posts',
+      [],
+      'get'
+    );
+    
+    const activeDiscussions = await global.ariadne.memory.safeDatabaseOperation(
+      'SELECT COUNT(*) as count FROM intellectual_posts WHERE status = "active"',
+      [],
+      'get'
+    );
+    
+    return {
+      available: true,
+      totalPosts: postCount?.count || 0,
+      activeDiscussions: activeDiscussions?.count || 0
+    };
+  } catch (error) {
+    console.error('Forum health check failed:', error);
+    return { available: false, error: error.message };
   }
 }
 

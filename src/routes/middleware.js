@@ -2,10 +2,10 @@ const validator = require('validator');
 const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 
-// Rate limiting configurations
+// Rate limiting configurations - More reasonable for web interface
 const generalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.API_RATE_LIMIT_PER_HOUR) || 100,
+  max: 1000, // 1000 requests per 15 minutes (much more reasonable for web UI)
   message: { error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false
@@ -13,7 +13,7 @@ const generalRateLimit = rateLimit({
 
 const thoughtRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 requests per window for thought-intensive operations
+  max: 30, // 30 requests per window for thought-intensive operations (increased)
   message: { error: 'Too many thinking requests, please allow time for reflection' },
   standardHeaders: true,
   legacyHeaders: false

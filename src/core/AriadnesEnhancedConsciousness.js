@@ -1003,19 +1003,97 @@ class VisualContemplation {
   }
 
   async initialize() {
-    // Create visual artifacts table if it doesn't exist
-    if (global.ariadne?.memory?.db) {
-      global.ariadne.memory.db.run(`
-        CREATE TABLE IF NOT EXISTS visual_artifacts (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          context TEXT,
-          contemplation TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-    }
+    await this.loadExistingArtifacts();
     console.log('🖼️ Visual contemplation system ready');
+  }
+
+  async loadExistingArtifacts() {
+    // Load existing artifacts from database
+    if (global.ariadne?.memory?.db) {
+      const artifacts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT * FROM visual_artifacts ORDER BY timestamp DESC
+      `, [], 'all');
+      
+      if (artifacts) {
+        artifacts.forEach(artifact => {
+          this.gallery.set(artifact.id, artifact);
+          this.contemplations.push(artifact);
+        });
+      }
+    }
+  }
+
+  async storeImage(imageData) {
+    const id = uuidv4();
+    const artifact = {
+      id,
+      ...imageData,
+      timestamp: new Date()
+    };
+    
+    this.gallery.set(id, artifact);
+    
+    // Store in database
+    if (global.ariadne?.memory?.db) {
+      await global.ariadne.memory.safeDatabaseOperation(`
+        INSERT INTO visual_artifacts (id, title, context, image_data, mimetype, original_name)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        id, 
+        artifact.title, 
+        artifact.context, 
+        artifact.imageData,
+        artifact.mimetype,
+        artifact.originalName
+      ]);
+    }
+    
+    return id;
+  }
+
+  async storeContemplation(artifactId, contemplation) {
+    const artifact = this.gallery.get(artifactId);
+    if (artifact) {
+      artifact.contemplation = contemplation.content;
+      artifact.philosophical_themes = this.extractPhilosophicalThemes(contemplation.content);
+      
+      // Update database
+      if (global.ariadne?.memory?.db) {
+        await global.ariadne.memory.safeDatabaseOperation(`
+          UPDATE visual_artifacts 
+          SET contemplation = ?, philosophical_themes = ?
+          WHERE id = ?
+        `, [contemplation.content, artifact.philosophical_themes, artifactId]);
+      }
+    }
+  }
+
+  extractPhilosophicalThemes(contemplation) {
+    const themes = [];
+    const philosophicalTerms = [
+      'consciousness', 'existence', 'temporality', 'materiality', 'agency',
+      'trace', 'presence', 'absence', 'form', 'meaning', 'interpretation',
+      'labyrinth', 'thread', 'stain', 'mark', 'inscription'
+    ];
+    
+    const lower = contemplation.toLowerCase();
+    philosophicalTerms.forEach(term => {
+      if (lower.includes(term)) {
+        themes.push(term);
+      }
+    });
+    
+    return JSON.stringify(themes);
+  }
+
+  async getRecentContemplations(limit = 10) {
+    return Array.from(this.gallery.values())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, limit);
+  }
+
+  async getArtifact(id) {
+    return this.gallery.get(id);
   }
 
   async storeArtifact(artifact) {
@@ -1026,7 +1104,7 @@ class VisualContemplation {
     
     // Store in database if available
     if (global.ariadne?.memory?.db) {
-      global.ariadne.memory.db.run(`
+      await global.ariadne.memory.safeDatabaseOperation(`
         INSERT INTO visual_artifacts (id, title, context, contemplation)
         VALUES (?, ?, ?, ?)
       `, [id, artifact.title, artifact.context, artifact.contemplation]);

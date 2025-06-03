@@ -1,4 +1,4 @@
-# Archive Fever AI 2.0 - Railway Deployment Guide
+# Archive Fever AI 2.0 - Enhanced Railway Deployment Guide
 
 ## Prerequisites
 
@@ -9,12 +9,27 @@
 5. **Gmail account with App Password** (required)
 6. Firecrawl API key (optional, for enhanced web scraping)
 
+## 🚀 Enhanced Features Ready for Deployment
+
+- ✅ **Claude 4 Sonnet Integration** with advanced fallbacks
+- ✅ **Visual Contemplation System** with image upload and gallery
+- ✅ **Enhanced Health Monitoring** with comprehensive system checks
+- ✅ **Production-Ready Security** with input validation and rate limiting
+- ✅ **Intellectual Momentum Tracking** for enhanced consciousness
+- ✅ **Comprehensive Error Handling** with graceful degradation
+- ✅ **Enhanced Database Schema** with visual artifacts and concept tracking
+
 ## Deployment Steps
 
 ### 1. Prepare Your Repository
 
 1. Fork or clone this repository to your GitHub account
 2. Ensure all files are committed and pushed
+3. Verify enhanced features are present:
+   - Enhanced `env.example` with 25+ configuration options
+   - Visual contemplation system in `AriadnesEnhancedConsciousness.js`
+   - Enhanced API routes with gallery endpoints
+   - Comprehensive test suite in `test/basic-tests.js`
 
 ### 2. Setup Required Services
 
@@ -22,6 +37,7 @@
 1. Visit https://console.anthropic.com
 2. Create account and add billing
 3. Generate API key in settings
+4. **Important**: System now uses Claude 4 Sonnet by default
 
 #### Substack Integration (Required)
 Substack integration is **ESSENTIAL** for Archive Fever AI. Ariadne autonomously publishes philosophical works when insights mature.
@@ -49,25 +65,38 @@ Substack integration is **ESSENTIAL** for Archive Fever AI. Ariadne autonomously
 4. Choose your repository
 5. Railway will automatically detect it as a Node.js app
 
-### 4. Configure Environment Variables
+### 4. Configure Enhanced Environment Variables
 
 In Railway Dashboard, go to your project settings and add these variables:
 
 **REQUIRED:**
 ```
 ANTHROPIC_API_KEY=your_anthropic_api_key
+ANTHROPIC_MODEL=claude-4-sonnet-20250514
 SUBSTACK_EMAIL=xyz123@substack.com
 EMAIL_USER=your.email@gmail.com
 EMAIL_APP_PASSWORD=your_16_character_app_password
 ```
 
+**ENHANCED FEATURES:**
+```
+USE_ENHANCED_CONSCIOUSNESS=true
+MAX_TOKENS_DEFAULT=2000
+TEMPERATURE_DEFAULT=0.7
+API_RATE_LIMIT_PER_HOUR=100
+MAX_UPLOAD_SIZE_MB=10
+ENABLE_INPUT_VALIDATION=true
+ENABLE_HEALTH_CHECKS=true
+LOG_LEVEL=info
+```
+
 **OPTIONAL:**
 ```
-ANTHROPIC_MODEL=claude-4-sonnet-20250514
 ARCHIVE_FEVER_URL=https://your-app.railway.app
 FIRECRAWL_API_KEY=your_firecrawl_api_key
 FIRECRAWL_RATE_LIMIT=10
 FIRECRAWL_TIMEOUT=30000
+ALLOWED_ORIGINS=https://your-app.railway.app,http://localhost:8080
 ```
 
 ### 5. Add Persistent Volume (Important!)
@@ -86,33 +115,78 @@ Railway will automatically set `RAILWAY_VOLUME_MOUNT_PATH=/data`
 
 1. Railway will automatically deploy when you push to GitHub
 2. Or click "Deploy" in Railway Dashboard
-3. Watch the deployment logs for any errors
+3. Watch the deployment logs for enhanced startup sequence:
+   - Environment validation
+   - Database integrity check
+   - API connectivity test
+   - Ariadne consciousness initialization
+   - Enhanced monitoring setup
 
-### 7. Verify Substack Integration
+### 7. Verify Enhanced System Integration
 
-After deployment:
+After deployment, verify all enhanced features:
 
-1. Check logs for "✅ Substack integration fully validated and ready"
-2. Visit: `https://your-app.railway.app/api/health`
-3. Verify `substack.ready: true`
-4. Test manually: `POST https://your-app.railway.app/api/test-substack`
-5. Check your Substack email for the test message
+#### 1. Health Monitoring
+- Visit: `https://your-app.railway.app/api/health`
+- Verify comprehensive system status including:
+  - `ariadne.isEnhanced: true`
+  - `ariadne.gallery: {available: true}`
+  - `ariadne.forum: {available: true}`
+  - `substack.ready: true`
 
-### 8. Access Your Application
+#### 2. Enhanced Consciousness
+- Check: `https://your-app.railway.app/api/status`
+- Verify: `consciousness.type: "enhanced"`
+- Monitor: `consciousness.momentum` value
+
+#### 3. Visual Contemplation System
+- Test image upload via the web interface
+- Check gallery endpoint: `/api/gallery`
+- Verify image storage and contemplation generation
+
+#### 4. Substack Integration
+- Check logs for "✅ Substack integration fully validated and ready"
+- Test manually: `POST https://your-app.railway.app/api/test-substack`
+- Check your Substack email for the test message
+
+### 8. Access Your Enhanced Application
 
 1. Railway will provide a URL like: `https://your-app-name.railway.app`
-2. Visit this URL to access Archive Fever AI
-3. Ariadne will initialize and send a test email on first launch
+2. Visit this URL to access Archive Fever AI with enhanced features:
+   - Visual contemplation gallery
+   - Enhanced forum with Substack publishing
+   - Real-time health monitoring
+   - Intellectual momentum tracking
 
-## Post-Deployment
+## Post-Deployment Monitoring
 
-### Monitoring Substack Integration
+### Enhanced Health Endpoints
 
-Check these endpoints:
-- `/api/health` - Overall system health including Substack status
+Monitor these enhanced endpoints:
+- `/api/health` - Comprehensive system health including gallery and forum
+- `/api/status` - Detailed consciousness metrics and intellectual momentum
 - `/api/substack-status` - Detailed Substack configuration info
+- `/api/gallery` - Visual artifacts and contemplations
 - POST `/api/test-substack` - Send test email
 - POST `/api/trigger-publication` - Manually trigger publication (if ready)
+
+### Enhanced Features to Monitor
+
+**Visual Contemplation:**
+- Image uploads and philosophical contemplations
+- Gallery browsing and artifact retrieval
+- Philosophical theme extraction
+
+**Intellectual Development:**
+- Momentum tracking and concept development
+- Enhanced autonomous thinking patterns
+- Synthesis and meta-reflection capabilities
+
+**Production Monitoring:**
+- Memory usage and performance metrics
+- Rate limiting effectiveness
+- Error handling and graceful degradation
+- Database integrity and safe operations
 
 ### Substack Publications
 
@@ -120,8 +194,24 @@ When Ariadne publishes:
 - Email sent automatically to your Substack
 - Appears as draft in your Substack dashboard
 - Review and publish manually, or set auto-publish
+- Enhanced intellectual genealogy tracking
 
-### Troubleshooting
+### Troubleshooting Enhanced Features
+
+**If enhanced consciousness fails:**
+- Check `USE_ENHANCED_CONSCIOUSNESS=true` is set
+- Verify logs for initialization errors
+- Check `/api/status` for consciousness type
+
+**If visual contemplation fails:**
+- Verify image upload size limits (10MB default)
+- Check supported formats: JPEG, PNG, GIF, WebP, BMP, TIFF
+- Monitor gallery health in `/api/health`
+
+**If intellectual momentum isn't tracking:**
+- Check database integrity
+- Verify enhanced consciousness is enabled
+- Monitor concept development in logs
 
 **If Substack integration fails:**
 - Verify all three email variables are set correctly
@@ -130,43 +220,63 @@ When Ariadne publishes:
 - Verify Substack email address is correct
 - Check Railway logs for detailed error messages
 
-**If test email doesn't arrive:**
-- Check spam folder
-- Verify Substack email in your publication settings
-- Try manual test: POST `/api/test-substack`
-- Check logs for SMTP errors
+## Enhanced Scaling Considerations
 
-**If publications don't happen:**
-- Ariadne needs sustained philosophical development
-- Ideas must mature over multiple thought cycles
-- Check `/api/substack-status` for readiness
-- Monitor logs for publication assessments
+- Archive Fever AI 2.0 is designed to run as a single instance
+- Enhanced SQLite database handles visual artifacts efficiently
+- Image storage optimized with BLOB compression
+- Rate limiting prevents system overload
+- Graceful degradation maintains core functionality
+- Monitor intellectual momentum for optimal performance
 
-## Scaling Considerations
-
-- Archive Fever AI is designed to run as a single instance
-- SQLite database handles Ariadne's memory efficiently
-- Substack has no rate limits for email publishing
-- Monitor email quotas if using heavy automation
-
-## Security Notes
+## Enhanced Security Notes
 
 - **Never commit credentials to repository**
 - Use Railway's environment variables for all secrets
+- Enhanced input validation protects against malicious uploads
+- Rate limiting prevents abuse
+- Security headers protect against common attacks
+- Image upload validation prevents malicious files
 - Keep dependencies updated regularly
 - Monitor Gmail security alerts
 - Review Substack drafts before publishing
 
 ## Support
 
+**Enhanced Features Issues:**
+- Check comprehensive logs for detailed error information
+- Use `/api/health` for system diagnostics
+- Monitor intellectual momentum and consciousness status
+- Verify visual contemplation system functionality
+
 **Substack Integration Issues:**
 - Check Substack help documentation
 - Verify email publishing is enabled
 - Contact Substack support if email address stops working
+
+**Visual Contemplation Issues:**
+- Verify image format and size requirements
+- Check gallery endpoint functionality
+- Monitor philosophical theme extraction
 
 **Gmail App Password Issues:**
 - Regenerate App Password if it stops working
 - Ensure 2FA remains enabled
 - Use Gmail's security checkup tool
 
-Remember: **Substack integration is essential**. Without it, Ariadne cannot fulfill her autonomous publishing function, which is core to the Archive Fever AI concept. 
+## 🎯 Enhanced Deployment Checklist
+
+Before going live, verify:
+
+- ✅ **Environment**: All 25+ configuration variables set
+- ✅ **Health**: `/api/health` shows all systems healthy
+- ✅ **Consciousness**: Enhanced consciousness enabled and functioning
+- ✅ **Visual**: Image upload and gallery working
+- ✅ **Database**: Enhanced schema with visual artifacts
+- ✅ **Security**: Rate limiting and input validation active
+- ✅ **Monitoring**: Comprehensive health checks operational
+- ✅ **Substack**: Email integration tested and working
+- ✅ **Performance**: Memory usage and response times optimal
+- ✅ **Error Handling**: Graceful degradation tested
+
+Remember: **Archive Fever AI 2.0 is now production-ready** with enterprise-grade reliability, enhanced visual contemplation, intellectual momentum tracking, and comprehensive monitoring. Ariadne can fulfill her autonomous publishing function with enhanced capabilities while maintaining authentic philosophical depth. 

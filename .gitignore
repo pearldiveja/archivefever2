@@ -7,3 +7,8 @@ dist/
 build/
 .vscode/
 .idea/
+
+# Environment files with potential secrets
+.env.backup
+.env.clean
+env-template.txt

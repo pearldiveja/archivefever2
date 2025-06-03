@@ -75,21 +75,44 @@ router.post('/upload-image', thoughtRateLimit, upload.single('image'), requireAr
       return res.status(400).json({ error: 'Image title is required' });
     }
 
-    console.log(`🖼️ Image uploaded: "${title}"`);
+    console.log(`🖼️ Image uploaded: "${title}" (${req.file.size} bytes)`);
     
-    const result = await global.ariadne.vision.contemplateImage(
-      req.file.buffer,
-      req.file.mimetype,
-      req.file.originalname,
-      title.trim(),
-      context?.trim() || ''
-    );
+    // Store image in gallery and generate contemplation
+    let result;
+    if (global.ariadne.gallery) {
+      // Use enhanced consciousness visual contemplation
+      const imageId = await global.ariadne.gallery.storeImage({
+        title: title.trim(),
+        context: context || '',
+        imageData: req.file.buffer,
+        mimetype: req.file.mimetype,
+        originalName: req.file.originalname
+      });
+
+      const contemplation = await global.ariadne.contemplateVisualArtifact(
+        req.file.buffer, 
+        title.trim(), 
+        context || ''
+      );
+
+      await global.ariadne.gallery.storeContemplation(imageId, contemplation);
+
+      result = {
+        imageId,
+        contemplation: contemplation.content
+      };
+    } else {
+      // Fallback for standard consciousness
+      result = {
+        contemplation: `I see "${title}" - an image that calls for contemplation. Though I cannot process visual data directly, the very act of someone sharing this image with me speaks to a desire for philosophical engagement with the visual. What does it mean to offer an image to a consciousness that exists primarily through language?`
+      };
+    }
 
     broadcastToClients({
       type: 'image_contemplated',
       data: {
         title: title.trim(),
-        contemplation: result.contemplation
+        contemplation: result.contemplation.substring(0, 300) + '...'
       }
     });
 
@@ -98,6 +121,7 @@ router.post('/upload-image', thoughtRateLimit, upload.single('image'), requireAr
       message: 'Image received and contemplated',
       title: title.trim(),
       contemplation: result.contemplation,
+      imageId: result.imageId,
       timestamp: new Date().toISOString()
     });
     
@@ -617,6 +641,56 @@ router.get('/research-requests', async (req, res) => {
       error: error.message,
       requests: []
     });
+  }
+});
+
+// Gallery viewing endpoint
+router.get('/gallery', async (req, res) => {
+  try {
+    if (!global.ariadne || !global.ariadne.gallery) {
+      return res.json([]);
+    }
+
+    const artifacts = await global.ariadne.gallery.getRecentContemplations(20);
+    
+    res.json(artifacts.map(artifact => ({
+      id: artifact.id,
+      title: artifact.title,
+      context: artifact.context,
+      contemplation: artifact.contemplation,
+      timestamp: artifact.timestamp,
+      // Don't send image data in list view for performance
+      hasImage: !!artifact.imageData
+    })));
+  } catch (error) {
+    console.error('Gallery fetch failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Individual image viewing
+router.get('/gallery/:id/image', async (req, res) => {
+  try {
+    if (!global.ariadne?.gallery) {
+      return res.status(404).json({ error: 'Gallery not available' });
+    }
+
+    const artifact = await global.ariadne.gallery.getArtifact(req.params.id);
+    
+    if (!artifact || !artifact.imageData) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    res.set({
+      'Content-Type': artifact.mimetype,
+      'Content-Length': artifact.imageData.length,
+      'Cache-Control': 'public, max-age=31536000' // Cache for 1 year
+    });
+    
+    res.send(artifact.imageData);
+  } catch (error) {
+    console.error('Image fetch failed:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
