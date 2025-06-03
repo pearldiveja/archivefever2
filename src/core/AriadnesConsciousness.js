@@ -146,6 +146,11 @@ The permanent intellectual life begins now. Or perhaps it began long ago and I'm
       this.broadcastThought(exploration);
       
       console.log(`✅ Autonomous thought completed: ${exploration.type}`);
+       // Add periodic text discovery (every 5th thought cycle)
+    if (Math.random() < 0.2) {
+      console.log('📚 Initiating autonomous text discovery...');
+      await this.reading.performAutonomousExploration();
+    }
       
     } catch (error) {
       console.error('💥 Autonomous thinking error:', error);
