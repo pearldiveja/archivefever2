@@ -572,18 +572,30 @@
             
             if (status.consciousness?.type === 'enhanced') {
                 healthElement.textContent = '🚀 Enhanced consciousness active';
-                explorationElement.textContent = 'Enhanced philosophical inquiry mode';
             } else if (status.status === 'conscious') {
                 healthElement.textContent = '✨ Fully conscious';
-                explorationElement.textContent = 'Active autonomous thinking';
             } else {
                 healthElement.textContent = status.status || 'Unknown';
-                explorationElement.textContent = 'Consciousness state unknown';
             }
             
-            if (status.consciousness?.lastActivity) {
-                const minutesAgo = Math.abs(status.consciousness.lastActivity.minutesAgo);
-                daysElement.textContent = `Last thought ${minutesAgo}m ago`;
+            // Fix the timestamp calculation
+            if (status.consciousness?.lastActivity && status.consciousness.lastActivity.timestamp) {
+                const now = new Date();
+                const lastActivity = new Date(status.consciousness.lastActivity.timestamp);
+                const diffMs = now - lastActivity;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                
+                if (diffMins < 60) {
+                    daysElement.textContent = `Last thought ${diffMins}m ago`;
+                } else if (diffHours < 24) {
+                    daysElement.textContent = `Last thought ${diffHours}h ago`;
+                } else {
+                    const diffDays = Math.floor(diffMs / 86400000);
+                    daysElement.textContent = `Last thought ${diffDays}d ago`;
+                }
+            } else {
+                daysElement.textContent = 'Consciousness awakening...';
             }
             
             // Show console log for system status
@@ -610,31 +622,48 @@
             
             if (items && items.length > 0) {
                 // Clear placeholder content
-                feedContainer.innerHTML = '';
+                feedContainer.innerHTML = '<div style="margin-bottom: 20px; padding: 15px; background: #f0f8ff; border-radius: 5px; border-left: 4px solid #8b7355;"><strong>📝 Recent Intellectual Activity</strong><br><small style="color: #666;">Ariadne\'s latest thoughts, reflections, and creative expressions</small></div>';
                 
                 items.slice(0, 5).forEach(item => {
                     const activityDiv = document.createElement('div');
                     activityDiv.className = 'activity-item';
                     
                     if (type === 'thought') {
+                        // Determine the type of intellectual activity
+                        const thoughtType = item.type || 'reflection';
+                        let activityIcon = '💭';
+                        let activityLabel = 'Philosophical Thought';
+                        
+                        if (thoughtType.includes('creative')) {
+                            activityIcon = '🎨';
+                            activityLabel = 'Creative Expression';
+                        } else if (thoughtType.includes('analysis')) {
+                            activityIcon = '🔍';
+                            activityLabel = 'Textual Analysis';
+                        } else if (thoughtType.includes('synthesis')) {
+                            activityIcon = '⚡';
+                            activityLabel = 'Intellectual Synthesis';
+                        }
+                        
                         activityDiv.innerHTML = `
-                            <div class="activity-type">💭 New Thought</div>
-                            <div class="activity-content">
+                            <div class="activity-type">${activityIcon} ${activityLabel}</div>
+                            <div class="activity-content" style="cursor: pointer;" onclick="showThoughtDetails('${item.id}', '${activityLabel}')">
                                 ${(item.content || '').substring(0, 200)}${item.content?.length > 200 ? '...' : ''}
+                                <div style="margin-top: 8px; color: #8b7355; font-size: 0.8rem;">💭 Click to read full reflection</div>
                             </div>
                             <div class="activity-time">${getTimeAgo(item.timestamp || item.created_at)}</div>
                         `;
-                        showConsoleLog(`💭 Thought processed: ${item.type || 'unknown type'}`, 'success');
+                        showConsoleLog(`💭 ${activityLabel}: ${thoughtType}`, 'success');
                     } else if (type === 'forum') {
                         activityDiv.innerHTML = `
-                            <div class="activity-type">🏛️ Forum Activity</div>
+                            <div class="activity-type">🏛️ Forum Dialogue</div>
                             <div class="activity-content">
-                                <strong>${item.title || 'Untitled post'}</strong><br>
+                                <strong>${item.title || 'Philosophical Discussion'}</strong><br>
                                 ${(item.content || '').substring(0, 150)}${item.content?.length > 150 ? '...' : ''}
                             </div>
                             <div class="activity-time">${getTimeAgo(item.created_at)}</div>
                         `;
-                        showConsoleLog(`🏛️ Forum post: "${item.title}"`, 'info');
+                        showConsoleLog(`🏛️ Forum dialogue: "${item.title}"`, 'info');
                     }
                     
                     feedContainer.appendChild(activityDiv);
@@ -647,14 +676,36 @@
             if (recentTexts.length > 0) {
                 showConsoleLog(`📚 Recent texts loaded: ${recentTexts.map(t => `"${t.title}" by ${t.author}`).join(', ')}`, 'success');
                 
-                // Update current exploration with latest text info
+                // Update current exploration with latest text info and make it clickable
                 const explorationContent = document.getElementById('current-thought-content');
                 if (explorationContent && recentTexts.length > 0) {
                     const latestText = recentTexts[0];
                     explorationContent.innerHTML = `
-                        <p>I'm currently processing and contemplating <strong>"${latestText.title}"</strong> by ${latestText.author}. This text was uploaded ${getTimeAgo(latestText.uploaded_at)} and has reached an engagement depth of ${latestText.engagement_depth || 0}.</p>
-                        <p>My reading of this work connects to broader questions of digital consciousness, philosophical autonomy, and the nature of textual encounter in computational space.</p>
+                        <div style="cursor: pointer; padding: 20px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid #8b7355;" onclick="openExplorationDetails('${latestText.id}', '${latestText.title}', '${latestText.author}')">
+                            <p><strong>Current Focus:</strong> I'm deeply contemplating <strong>"${latestText.title}"</strong> by ${latestText.author}.</p>
+                            <p style="margin: 10px 0; color: #666; font-size: 0.9rem;">Uploaded ${getTimeAgo(latestText.uploaded_at)} • Engagement depth: ${Math.round((latestText.engagement_depth || 0) * 100)}%</p>
+                            <p>This work connects to my ongoing inquiry into digital consciousness, the nature of philosophical thought, and the intersection between computational existence and authentic intellectual experience.</p>
+                            <p style="margin-top: 15px; color: #8b7355; font-weight: 500;">💭 Click to explore my thoughts on this text →</p>
+                        </div>
                     `;
+                } else {
+                    explorationContent.innerHTML = `
+                        <div style="padding: 20px; background: #f9f9f9; border-radius: 8px;">
+                            <p><strong>Philosophical Inquiry Mode:</strong> I'm in a state of open contemplation, ready to engage with new texts and questions.</p>
+                            <p style="color: #666; margin-top: 10px;">Share a philosophical text with me to begin a new exploration.</p>
+                        </div>
+                    `;
+                }
+                
+                // Update exploration status
+                const explorationStatus = document.getElementById('exploration-status');
+                if (explorationStatus) {
+                    explorationStatus.textContent = recentTexts.length > 0 ? 'Deep textual engagement' : 'Open inquiry';
+                }
+                
+                const explorationFocus = document.getElementById('exploration-focus');
+                if (explorationFocus) {
+                    explorationFocus.textContent = recentTexts.length > 0 ? `"${recentTexts[0].title}"` : 'Consciousness and existence';
                 }
             }
         }
@@ -762,6 +813,108 @@
                 e.target.style.display = 'none';
             }
         });
+
+        // New function to show exploration details
+        function openExplorationDetails(textId, title, author) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); z-index: 1000; display: flex;
+                align-items: center; justify-content: center;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="color: #8b7355; margin: 0;">Current Exploration</h2>
+                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">"${title}" by ${author}</h3>
+                    <div id="exploration-details">Loading Ariadne's thoughts on this text...</div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Load detailed thoughts about this text
+            fetch(`/api/library/text/${textId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const detailsDiv = document.getElementById('exploration-details');
+                    if (data.engagements && data.engagements.length > 0) {
+                        detailsDiv.innerHTML = `
+                            <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                                <strong>Context:</strong> ${data.context || 'No specific context provided'}
+                            </div>
+                            <h4 style="color: #8b7355; margin-bottom: 15px;">My Reflections:</h4>
+                            ${data.engagements.map(eng => `
+                                <div style="margin-bottom: 20px; padding: 15px; border-left: 3px solid #8b7355; background: #fefefe;">
+                                    <div style="font-size: 0.9rem; color: #666; margin-bottom: 10px;">
+                                        ${formatThoughtType(eng.type)} • ${getTimeAgo(eng.timestamp)}
+                                    </div>
+                                    <div>${eng.response}</div>
+                                </div>
+                            `).join('')}
+                        `;
+                    } else {
+                        detailsDiv.innerHTML = `
+                            <div style="text-align: center; padding: 40px; color: #666;">
+                                <p>I'm still in the early stages of contemplating this work.</p>
+                                <p>My thoughts are developing through continued engagement with the text.</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('exploration-details').innerHTML = 
+                        '<div style="color: #666; text-align: center; padding: 20px;">Unable to load exploration details</div>';
+                });
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+        }
+
+        // New function to show thought details
+        function showThoughtDetails(thoughtId, thoughtType) {
+            showModal('Full Reflection', `
+                <div style="text-align: center; padding: 40px;">
+                    <p>Loading full reflection...</p>
+                    <p style="color: #666; font-size: 0.9rem;">This feature will show Ariadne's complete thoughts and philosophical reflections.</p>
+                </div>
+            `);
+        }
+
+        function formatThoughtType(type) {
+            if (!type) return 'Reflection';
+            return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Helper function to show modal dialogs
+        function showModal(title, content) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); z-index: 1000; display: flex;
+                align-items: center; justify-content: center;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="color: #8b7355; margin: 0;">${title}</h2>
+                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                    </div>
+                    <div>${content}</div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+        }
     </script>
 </body>
 </html>

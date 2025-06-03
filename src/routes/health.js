@@ -173,16 +173,42 @@ async function checkAPIHealth() {
 
 async function getLastThoughtInfo() {
   try {
-    if (!global.ariadne?.memory) return null;
+    if (!global.ariadne?.memory) {
+      return null;
+    }
     
-    const lastThought = await global.ariadne.memory.getLastThought();
+    // Get the most recent thought from the database
+    const lastThought = await global.ariadne.memory.safeDatabaseOperation(
+      'SELECT id, type, timestamp, content FROM thoughts ORDER BY timestamp DESC LIMIT 1',
+      [],
+      'get'
+    );
+    
     if (!lastThought) return null;
+    
+    // Use timestamp
+    const thoughtTime = lastThought.timestamp;
+    if (!thoughtTime) return null;
+    
+    // Convert SQLite datetime format to ISO format
+    let isoTimestamp;
+    try {
+      // Handle SQLite datetime format "YYYY-MM-DD HH:MM:SS"
+      if (typeof thoughtTime === 'string' && thoughtTime.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+        isoTimestamp = new Date(thoughtTime.replace(' ', 'T') + 'Z').toISOString();
+      } else {
+        isoTimestamp = new Date(thoughtTime).toISOString();
+      }
+    } catch (e) {
+      console.error('Timestamp conversion error:', e);
+      isoTimestamp = new Date().toISOString(); // Fallback to current time
+    }
     
     return {
       id: lastThought.id,
       type: lastThought.type,
-      timestamp: lastThought.timestamp,
-      minutesAgo: Math.round((new Date() - new Date(lastThought.timestamp)) / 1000 / 60)
+      timestamp: isoTimestamp, // Return ISO format for frontend calculation
+      preview: lastThought.content ? lastThought.content.substring(0, 100) : null
     };
   } catch (error) {
     console.error('Last thought info failed:', error);
