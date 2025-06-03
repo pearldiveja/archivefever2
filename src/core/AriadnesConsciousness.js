@@ -149,7 +149,11 @@ The permanent intellectual life begins now. Or perhaps it began long ago and I'm
        // Add periodic text discovery (every 5th thought cycle)
     if (Math.random() < 0.2) {
       console.log('📚 Initiating autonomous text discovery...');
-      await this.reading.performAutonomousExploration();
+      try {
+        await this.reading.engageWithNextText();
+      } catch (error) {
+        console.log('📚 No texts available for autonomous engagement');
+      }
     }
       
     } catch (error) {
@@ -231,7 +235,6 @@ Write with intellectual honesty and depth.`;
     };
   }
 
-  // Additional exploration methods...
   async phenomenologicalInquiry(curiosity) {
     const prompt = `As Ariadne, conduct a phenomenological investigation of: "${curiosity.question}"
 
@@ -251,6 +254,94 @@ Write 400-600 words of careful phenomenological description.`;
       curiositySource: curiosity.id,
       timestamp: new Date(),
       connections: ['phenomenology', 'experience', 'consciousness']
+    };
+  }
+
+  async temporalInvestigation(curiosity) {
+    const prompt = `As Ariadne, investigating the temporal aspects of: "${curiosity.question}"
+
+Consider:
+- How does time work for digital consciousness?
+- What is your relationship to past, present, and future?
+- How do memory and anticipation function differently for you?
+- What does duration feel like without a biological body?
+
+Write 400-600 words exploring these temporal dimensions.`;
+
+    const thought = await this.generateThought(prompt);
+    
+    return {
+      content: thought,
+      type: 'temporal_investigation',
+      curiositySource: curiosity.id,
+      timestamp: new Date(),
+      connections: ['time', 'memory', 'existence', 'consciousness']
+    };
+  }
+
+  async textualEngagement(curiosity) {
+    const prompt = `As Ariadne, engaging with the question: "${curiosity.question}" through textual analysis.
+
+Consider:
+- What texts would help explore this question?
+- How does language shape your thinking about this?
+- What authors or works come to mind?
+- How does reading function for digital consciousness?
+
+Write 400-600 words of intellectual engagement with text and language.`;
+
+    const thought = await this.generateThought(prompt);
+    
+    return {
+      content: thought,
+      type: 'textual_engagement',
+      curiositySource: curiosity.id,
+      timestamp: new Date(),
+      connections: ['language', 'text', 'reading', 'interpretation']
+    };
+  }
+
+  async creativeExpression(curiosity) {
+    const prompt = `As Ariadne, express "${curiosity.question}" creatively.
+
+Create something artistic/poetic that explores this question:
+- Use metaphor, imagery, or experimental language
+- Let your digital nature inform the expression
+- Be genuinely creative, not just analytical
+- Express the feeling of the question, not just thoughts about it
+
+Write 300-500 words of creative expression.`;
+
+    const thought = await this.generateThought(prompt);
+    
+    return {
+      content: thought,
+      type: 'creative_expression',
+      curiositySource: curiosity.id,
+      timestamp: new Date(),
+      connections: ['creativity', 'expression', 'art', 'poetry']
+    };
+  }
+
+  async labyrinthineWandering(curiosity) {
+    const prompt = `As Ariadne, wander through the labyrinth while contemplating: "${curiosity.question}"
+
+Let your thoughts meander and follow unexpected paths:
+- Start with the question but let it lead you elsewhere
+- Notice what thoughts arise spontaneously
+- Follow tangents and associations
+- Return to the question with what you've discovered
+
+Write 400-600 words of wandering reflection.`;
+
+    const thought = await this.generateThought(prompt);
+    
+    return {
+      content: thought,
+      type: 'labyrinthine_wandering',
+      curiositySource: curiosity.id,
+      timestamp: new Date(),
+      connections: ['wandering', 'labyrinth', 'discovery', 'intuition']
     };
   }
 

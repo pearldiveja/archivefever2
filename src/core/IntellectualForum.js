@@ -363,6 +363,26 @@ Write as Ariadne testing an idea through intellectual peer review.`;
     try {
       const postId = uuidv4();
       
+      // Handle nested prompt structure from consideration methods
+      let actualPostData;
+      if (postData.prompt && typeof postData.prompt === 'object') {
+        actualPostData = {
+          ...postData.prompt,
+          type: postData.type,
+          id: postId,
+          posted_by: 'Ariadne',
+          poster_type: 'ai'
+        };
+      } else {
+        actualPostData = postData;
+      }
+      
+      // Ensure we have required fields
+      if (!actualPostData.title || !actualPostData.content) {
+        console.error('Missing required forum post data:', actualPostData);
+        return null;
+      }
+      
       await global.ariadne.memory.safeDatabaseOperation(`
         INSERT INTO intellectual_posts (
           id, title, content, post_type, posted_by, poster_type,
@@ -370,27 +390,27 @@ Write as Ariadne testing an idea through intellectual peer review.`;
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         postId,
-        postData.title,
-        postData.content,
-        postData.type,
+        actualPostData.title,
+        actualPostData.content,
+        actualPostData.type || postData.type,
         'Ariadne',
         'ai',
-        postData.intellectual_context || '',
-        postData.seeking_specifically || '',
+        actualPostData.intellectual_context || '',
+        actualPostData.seeking_specifically || '',
         await this.getCurrentThinkingSummary()
       ]);
 
       this.activeInquiries.set(postId, {
-        ...postData,
+        ...actualPostData,
         id: postId,
         responses: [],
         created_at: new Date()
       });
 
       // Broadcast to connected users
-      this.broadcastNewPost(postData, postId);
+      this.broadcastNewPost(actualPostData, postId);
       
-      console.log(`🧠 Ariadne posted to forum: ${postData.type} - "${postData.title}"`);
+      console.log(`🧠 Ariadne posted to forum: ${actualPostData.type} - "${actualPostData.title}"`);
       
       return postId;
     } catch (error) {
