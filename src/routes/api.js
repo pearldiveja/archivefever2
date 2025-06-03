@@ -172,6 +172,42 @@ router.post('/trigger-thinking', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// Add new endpoint for manual Firecrawl search
+app.post('/api/search-texts', async (req, res) => {
+  try {
+    const { query, theme } = req.body;
+    
+    if (!query && !theme) {
+      return res.status(400).json({ error: 'Query or theme required' });
+    }
+    
+    console.log(`🔍 Manual text search requested: ${query || theme}`);
+    
+    let results;
+    if (theme) {
+      results = await ariadne.reading.firecrawlClient.searchByTheme(theme);
+    } else {
+      results = await ariadne.reading.firecrawlClient.searchPhilosophicalTexts(query);
+    }
+    
+    res.json({
+      success: true,
+      count: results.length,
+      texts: results.map(text => ({
+        title: text.title,
+        author: text.author,
+        source: text.source,
+        url: text.url,
+        preview: text.content.substring(0, 500) + '...',
+        contentLength: text.content.length
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Text search failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Get research requests
 router.get('/research-requests', async (req, res) => {
