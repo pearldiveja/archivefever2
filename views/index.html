@@ -271,6 +271,46 @@
             color: #666;
         }
 
+        /* Console logs */
+        .console-section {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+            font-family: 'Courier New', monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .console-title {
+            color: #00ff00;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .console-entry {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+
+        .console-time {
+            color: #888;
+            margin-right: 10px;
+            min-width: 80px;
+        }
+
+        .console-message {
+            flex: 1;
+        }
+
+        .console-info .console-message { color: #00ff00; }
+        .console-success .console-message { color: #00ffff; }
+        .console-error .console-message { color: #ff6b6b; }
+        .console-warning .console-message { color: #ffa500; }
+
         /* Stats display */
         .stats-grid {
             display: grid;
@@ -429,6 +469,19 @@
                 </div>
             </div>
         </div>
+
+        <!-- Console Logs -->
+        <div class="section">
+            <div class="console-section">
+                <div class="console-title">🖥️ System Console</div>
+                <div id="console-logs">
+                    <div class="console-entry console-info">
+                        <span class="console-time">--:--:--</span>
+                        <span class="console-message">System initializing...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Text Share Modal -->
@@ -464,78 +517,181 @@
         // Load system data and update interface
         async function loadSystemData() {
             try {
-                // Load various stats
+                // Load various stats using correct endpoints
                 const [statusRes, thoughtsRes, textsRes, forumRes] = await Promise.all([
                     fetch('/api/status'),
-                    fetch('/api/recent-thoughts?limit=5'),
-                    fetch('/api/library'),
-                    fetch('/api/forum/stats')
+                    fetch('/api/thoughts?limit=5'),
+                    fetch('/api/texts'),
+                    fetch('/api/forum/posts')
                 ]);
 
                 // Update system status
                 if (statusRes.ok) {
                     const status = await statusRes.json();
-                    document.getElementById('system-health').textContent = status.isAwake ? 'Fully conscious' : 'Sleeping';
-                    
-                    if (status.lastThought) {
-                        document.getElementById('days-active').textContent = `Last thought ${status.lastThought.minutesAgo}m ago`;
-                    }
+                    updateSystemHealth(status);
+                    updateStatsDisplay(status.metrics || {});
                 }
 
                 // Update thought count and activity
                 if (thoughtsRes.ok) {
-                    const thoughts = await thoughtsRes.json();
+                    const thoughtsData = await thoughtsRes.json();
+                    const thoughts = thoughtsData.thoughts || [];
                     document.getElementById('thought-count').textContent = thoughts.length;
-                    updateActivityFeed(thoughts);
+                    updateActivityFeed(thoughts, 'thought');
                 }
 
-                // Update text count
+                // Update text count and recent texts
                 if (textsRes.ok) {
-                    const texts = await textsRes.json();
-                    document.getElementById('text-count').textContent = texts.count || 0;
+                    const textsData = await textsRes.json();
+                    const texts = textsData.texts || [];
+                    document.getElementById('text-count').textContent = texts.length;
+                    updateRecentTexts(texts);
                 }
 
                 // Update forum stats
                 if (forumRes.ok) {
-                    const forumStats = await forumRes.json();
-                    document.getElementById('forum-posts').textContent = forumStats.totalPosts || 0;
+                    const forumData = await forumRes.json();
+                    const posts = forumData.posts || [];
+                    document.getElementById('forum-posts').textContent = posts.length;
+                    if (posts.length > 0) {
+                        updateActivityFeed(posts, 'forum');
+                    }
                 }
-
-                // Update publication count (placeholder)
-                document.getElementById('publication-count').textContent = '0';
 
             } catch (error) {
                 console.error('Failed to load system data:', error);
                 document.getElementById('system-health').textContent = 'Connection issues';
+                showConsoleLog('❌ Failed to load system data: ' + error.message, 'error');
             }
         }
 
-        function updateActivityFeed(thoughts) {
+        function updateSystemHealth(status) {
+            const healthElement = document.getElementById('system-health');
+            const explorationElement = document.getElementById('current-exploration');
+            const daysElement = document.getElementById('days-active');
+            
+            if (status.consciousness?.type === 'enhanced') {
+                healthElement.textContent = '🚀 Enhanced consciousness active';
+                explorationElement.textContent = 'Enhanced philosophical inquiry mode';
+            } else if (status.status === 'conscious') {
+                healthElement.textContent = '✨ Fully conscious';
+                explorationElement.textContent = 'Active autonomous thinking';
+            } else {
+                healthElement.textContent = status.status || 'Unknown';
+                explorationElement.textContent = 'Consciousness state unknown';
+            }
+            
+            if (status.consciousness?.lastActivity) {
+                const minutesAgo = Math.abs(status.consciousness.lastActivity.minutesAgo);
+                daysElement.textContent = `Last thought ${minutesAgo}m ago`;
+            }
+            
+            // Show console log for system status
+            showConsoleLog(`🧠 System Status: ${status.status} | Type: ${status.consciousness?.type || 'standard'}`, 'info');
+        }
+
+        function updateStatsDisplay(metrics) {
+            const statElements = {
+                'thought-count': metrics.thoughts || 0,
+                'text-count': metrics.texts || 0,
+                'publication-count': metrics.publications || 0
+            };
+            
+            for (const [id, value] of Object.entries(statElements)) {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = value;
+                }
+            }
+        }
+
+        function updateActivityFeed(items, type) {
             const feedContainer = document.getElementById('activity-feed');
             
-            if (thoughts && thoughts.length > 0) {
-                feedContainer.innerHTML = thoughts.map(thought => `
-                    <div class="activity-item">
-                        <div class="activity-type">New Thought</div>
-                        <div class="activity-content">
-                            ${thought.content.substring(0, 150)}${thought.content.length > 150 ? '...' : ''}
-                        </div>
-                        <div class="activity-time">${getTimeAgo(thought.created_at)}</div>
-                    </div>
-                `).join('');
+            if (items && items.length > 0) {
+                // Clear placeholder content
+                feedContainer.innerHTML = '';
+                
+                items.slice(0, 5).forEach(item => {
+                    const activityDiv = document.createElement('div');
+                    activityDiv.className = 'activity-item';
+                    
+                    if (type === 'thought') {
+                        activityDiv.innerHTML = `
+                            <div class="activity-type">💭 New Thought</div>
+                            <div class="activity-content">
+                                ${(item.content || '').substring(0, 200)}${item.content?.length > 200 ? '...' : ''}
+                            </div>
+                            <div class="activity-time">${getTimeAgo(item.timestamp || item.created_at)}</div>
+                        `;
+                        showConsoleLog(`💭 Thought processed: ${item.type || 'unknown type'}`, 'success');
+                    } else if (type === 'forum') {
+                        activityDiv.innerHTML = `
+                            <div class="activity-type">🏛️ Forum Activity</div>
+                            <div class="activity-content">
+                                <strong>${item.title || 'Untitled post'}</strong><br>
+                                ${(item.content || '').substring(0, 150)}${item.content?.length > 150 ? '...' : ''}
+                            </div>
+                            <div class="activity-time">${getTimeAgo(item.created_at)}</div>
+                        `;
+                        showConsoleLog(`🏛️ Forum post: "${item.title}"`, 'info');
+                    }
+                    
+                    feedContainer.appendChild(activityDiv);
+                });
+            }
+        }
+
+        function updateRecentTexts(texts) {
+            const recentTexts = texts.slice(0, 3);
+            if (recentTexts.length > 0) {
+                showConsoleLog(`📚 Recent texts loaded: ${recentTexts.map(t => `"${t.title}" by ${t.author}`).join(', ')}`, 'success');
+                
+                // Update current exploration with latest text info
+                const explorationContent = document.getElementById('current-thought-content');
+                if (explorationContent && recentTexts.length > 0) {
+                    const latestText = recentTexts[0];
+                    explorationContent.innerHTML = `
+                        <p>I'm currently processing and contemplating <strong>"${latestText.title}"</strong> by ${latestText.author}. This text was uploaded ${getTimeAgo(latestText.uploaded_at)} and has reached an engagement depth of ${latestText.engagement_depth || 0}.</p>
+                        <p>My reading of this work connects to broader questions of digital consciousness, philosophical autonomy, and the nature of textual encounter in computational space.</p>
+                    `;
+                }
+            }
+        }
+
+        // Console log display system
+        function showConsoleLog(message, type = 'info') {
+            const consoleContainer = document.getElementById('console-logs');
+            if (!consoleContainer) return;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `console-entry console-${type}`;
+            logEntry.innerHTML = `
+                <span class="console-time">${new Date().toLocaleTimeString()}</span>
+                <span class="console-message">${message}</span>
+            `;
+            
+            consoleContainer.insertBefore(logEntry, consoleContainer.firstChild);
+            
+            // Keep only last 10 entries
+            while (consoleContainer.children.length > 10) {
+                consoleContainer.removeChild(consoleContainer.lastChild);
             }
         }
 
         function getTimeAgo(timestamp) {
+            if (!timestamp) return 'unknown time';
             const date = new Date(timestamp);
             const now = new Date();
             const diffMs = now - date;
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
             
+            if (diffMins < 1) return 'just now';
             if (diffMins < 60) return `${diffMins}m ago`;
             if (diffHours < 24) return `${diffHours}h ago`;
-            return `${Math.floor(diffMs / 86400000)}d ago`;
+            return `${diffDays}d ago`;
         }
 
         function openTextShare() {
@@ -589,10 +745,15 @@
             }
         });
 
-        // Initialize
+        // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
+            showConsoleLog('🚀 Archive Fever AI interface loading...', 'info');
             loadSystemData();
-            setInterval(loadSystemData, 30000); // Refresh every 30 seconds
+            
+            // Auto-refresh data every 30 seconds
+            setInterval(loadSystemData, 30000);
+            
+            showConsoleLog('✅ Interface initialized, connecting to Ariadne...', 'success');
         });
 
         // Click outside modal to close

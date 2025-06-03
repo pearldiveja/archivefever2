@@ -73,9 +73,17 @@ function validateEnvironment() {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
   
-  // Validate API key format
-  if (!process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
+  // Validate API key format (allow test keys in development)
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isValidKey = process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-') || 
+                    (isDevelopment && process.env.ANTHROPIC_API_KEY.startsWith('sk-test-'));
+  
+  if (!isValidKey) {
     throw new Error('Invalid Anthropic API key format');
+  }
+
+  if (isDevelopment && process.env.ANTHROPIC_API_KEY.startsWith('sk-test-')) {
+    console.log('⚠️ Using test API key - some features may be limited');
   }
 
   console.log('✅ Environment validated');
@@ -103,13 +111,24 @@ async function checkDatabaseIntegrity() {
 
 // API connectivity test
 async function testAPIConnectivity() {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isTestKey = process.env.ANTHROPIC_API_KEY.startsWith('sk-test-');
+  
+  if (isDevelopment && isTestKey) {
+    console.log('⚠️ Skipping API connectivity test in development mode with test key');
+    return;
+  }
+  
   const AnthropicClient = require('./src/clients/AnthropicClient');
   const client = new AnthropicClient();
   try {
     await client.generateThought('Test connectivity', 10);
     console.log('✅ API connectivity confirmed');
   } catch (error) {
-    throw new Error(`API connectivity test failed: ${error.message}`);
+    console.warn(`⚠️ API connectivity test failed: ${error.message}`);
+    if (!isDevelopment) {
+      throw new Error(`API connectivity test failed: ${error.message}`);
+    }
   }
 }
 

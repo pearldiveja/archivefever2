@@ -294,6 +294,80 @@ router.get('/texts', async (req, res) => {
   }
 });
 
+// Library endpoint for the library page
+router.get('/library', async (req, res) => {
+  try {
+    if (!global.ariadne?.memory) {
+      return res.json({ texts: [], totalTexts: 0 });
+    }
+
+    const texts = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT id, title, author, source, uploaded_by, uploaded_at, engagement_depth, last_engaged
+      FROM texts 
+      ORDER BY uploaded_at DESC
+    `, [], 'all');
+    
+    const totalTexts = texts ? texts.length : 0;
+    const deepEngagements = texts ? texts.filter(t => (t.engagement_depth || 0) > 0.5).length : 0;
+    
+    res.json({
+      texts: texts || [],
+      totalTexts,
+      deepEngagements,
+      currentlyReading: texts && texts.length > 0 ? texts[0].title : 'None',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Library retrieval failed:', error);
+    res.status(500).json({ 
+      error: error.message,
+      texts: [],
+      totalTexts: 0
+    });
+  }
+});
+
+// Individual text details for library
+router.get('/library/text/:textId', async (req, res) => {
+  try {
+    if (!global.ariadne?.memory) {
+      return res.status(404).json({ error: 'Text not found' });
+    }
+
+    const { textId } = req.params;
+    
+    const text = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT * FROM texts WHERE id = ?
+    `, [textId], 'get');
+    
+    if (!text) {
+      return res.status(404).json({ error: 'Text not found' });
+    }
+    
+    // Get engagements/thoughts related to this text
+    const engagements = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT type, content as response, timestamp
+      FROM thoughts 
+      WHERE content LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%'
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `, [text.title, text.author], 'all');
+    
+    res.json({
+      ...text,
+      engagements: engagements || [],
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Text details retrieval failed:', error);
+    res.status(500).json({ 
+      error: error.message
+    });
+  }
+});
+
 // Get visual artifacts
 router.get('/visual-artifacts', async (req, res) => {
   try {
