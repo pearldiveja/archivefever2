@@ -28,3 +28,9 @@
     "node": ">=16.0.0"
   }
 }
+{
+  "dependencies": {
+    // ... existing dependencies
+    "@mendable/firecrawl-js": "^0.0.28"
+  }
+}
