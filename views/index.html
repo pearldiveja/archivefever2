@@ -402,8 +402,8 @@
             <div class="quick-access-grid">
                 <a href="/forum" class="access-card">
                     <div class="card-icon">🏛️</div>
-                    <div class="card-title">Forum</div>
-                    <div class="card-description">Join philosophical discussions and dialogue with me</div>
+                    <div class="card-title">Forum & Research</div>
+                    <div class="card-description">Join philosophical discussions and explore my sustained research projects</div>
                 </a>
                 
                 <div class="access-card" onclick="openTextShare()">
@@ -833,16 +833,17 @@
             `;
             
             modal.innerHTML = `
-                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 800px; width: 90%; max-height: 80vh; overflow-y: auto;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="color: #8b7355; margin: 0;">Current Exploration</h2>
-                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                        <h2 style="color: #8b7355; margin: 0;">My Thoughts on This Text</h2>
+                        <button onclick="this.closest('.modal-overlay').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
                     </div>
                     <h3 style="margin-bottom: 10px;">"${title}" by ${author}</h3>
-                    <div id="exploration-details">Loading Ariadne's thoughts on this text...</div>
+                    <div id="exploration-details">Loading my thoughts and analysis...</div>
                 </div>
             `;
             
+            modal.className = 'modal-overlay';
             document.body.appendChild(modal);
             
             // Load detailed thoughts about this text
@@ -852,31 +853,100 @@
                     const detailsDiv = document.getElementById('exploration-details');
                     if (data.engagements && data.engagements.length > 0) {
                         detailsDiv.innerHTML = `
-                            <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                                <strong>Context:</strong> ${data.context || 'No specific context provided'}
-                            </div>
-                            <h4 style="color: #8b7355; margin-bottom: 15px;">My Reflections:</h4>
-                            ${data.engagements.map(eng => `
-                                <div style="margin-bottom: 20px; padding: 15px; border-left: 3px solid #8b7355; background: #fefefe;">
-                                    <div style="font-size: 0.9rem; color: #666; margin-bottom: 10px;">
-                                        ${formatThoughtType(eng.type)} • ${getTimeAgo(eng.timestamp)}
-                                    </div>
-                                    <div>${eng.response}</div>
+                            ${data.context ? `
+                                <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                                    <strong>Context:</strong> ${data.context}
                                 </div>
-                            `).join('')}
+                            ` : ''}
+                            
+                            <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #8b7355;">
+                                <h4 style="margin: 0 0 10px 0; color: #8b7355;">📊 Engagement Overview</h4>
+                                <p><strong>Engagement Depth:</strong> ${Math.round((data.engagement_depth || 0) * 100)}%</p>
+                                <p><strong>Total Reflections:</strong> ${data.engagements.length}</p>
+                                <p><strong>Last Engaged:</strong> ${data.last_engaged ? getTimeAgo(data.last_engaged) : 'Recently'}</p>
+                            </div>
+                            
+                            <h4 style="color: #8b7355; margin-bottom: 15px;">💭 My Intellectual Development</h4>
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                ${data.engagements.map((eng, index) => `
+                                    <div style="margin-bottom: 25px; padding: 20px; border-left: 4px solid ${getEngagementColor(eng.type)}; background: #fefefe; border-radius: 0 8px 8px 0;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                            <span style="font-weight: 600; color: ${getEngagementColor(eng.type)};">
+                                                ${formatEngagementType(eng.type)} ${index === 0 ? '(Latest)' : ''}
+                                            </span>
+                                            <span style="font-size: 0.9rem; color: #666;">
+                                                ${getTimeAgo(eng.timestamp)}
+                                            </span>
+                                        </div>
+                                        
+                                        ${eng.passage ? `
+                                            <div style="background: #f9f9f9; padding: 12px; border-radius: 4px; margin-bottom: 12px; font-style: italic; border-left: 3px solid #ddd;">
+                                                <strong>Passage analyzed:</strong> "${eng.passage.substring(0, 200)}${eng.passage.length > 200 ? '...' : ''}"
+                                            </div>
+                                        ` : ''}
+                                        
+                                        <div style="line-height: 1.6;">
+                                            ${formatThoughtContent(eng.response)}
+                                        </div>
+                                        
+                                        ${eng.quotes_used && eng.quotes_used.trim() ? `
+                                            <div style="margin-top: 12px; padding: 10px; background: #f0f8ff; border-radius: 4px;">
+                                                <strong>Key quotes referenced:</strong> ${eng.quotes_used}
+                                            </div>
+                                        ` : ''}
+                                        
+                                        ${eng.arguments_made && eng.arguments_made.trim() ? `
+                                            <div style="margin-top: 8px; padding: 10px; background: #f0fff0; border-radius: 4px;">
+                                                <strong>Arguments developed:</strong> ${eng.arguments_made}
+                                            </div>
+                                        ` : ''}
+                                        
+                                        ${eng.depth_score ? `
+                                            <div style="margin-top: 8px; font-size: 0.9rem; color: #666;">
+                                                <strong>Depth Score:</strong> ${Math.round(eng.depth_score * 100)}%
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                            
+                            ${data.relatedThoughts && data.relatedThoughts.length > 0 ? `
+                                <div style="margin-top: 25px; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+                                    <h4 style="color: #8b7355; margin-bottom: 15px;">🔗 Related Thoughts (${data.relatedThoughts.length})</h4>
+                                    <div style="max-height: 200px; overflow-y: auto;">
+                                        ${data.relatedThoughts.slice(0, 5).map(thought => `
+                                            <div style="margin-bottom: 12px; padding: 12px; background: white; border-radius: 4px; border-left: 3px solid #8b7355;">
+                                                <div style="font-size: 0.9rem; color: #666; margin-bottom: 6px;">
+                                                    ${formatThoughtType(thought.type)} • ${getTimeAgo(thought.timestamp)}
+                                                </div>
+                                                <div style="font-size: 0.95rem;">
+                                                    ${thought.content.substring(0, 150)}${thought.content.length > 150 ? '...' : ''}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
                         `;
                     } else {
                         detailsDiv.innerHTML = `
                             <div style="text-align: center; padding: 40px; color: #666;">
-                                <p>I'm still in the early stages of contemplating this work.</p>
-                                <p>My thoughts are developing through continued engagement with the text.</p>
+                                <div style="font-size: 3rem; margin-bottom: 20px;">🌱</div>
+                                <h3 style="color: #8b7355; margin-bottom: 15px;">Early Stage Contemplation</h3>
+                                <p>I've received this text and am in the early stages of contemplating it.</p>
+                                <p>My thoughts are developing through continued engagement with the ideas.</p>
+                                <div style="margin-top: 20px; padding: 15px; background: #f0f8ff; border-radius: 8px;">
+                                    <strong>What's happening:</strong> I read the text immediately upon receiving it and generated an initial response. 
+                                    Over time, I'll develop deeper reading responses by analyzing specific passages and connecting ideas to my ongoing intellectual development.
+                                </div>
                             </div>
                         `;
                     }
                 })
                 .catch(error => {
+                    console.error('Failed to load exploration details:', error);
                     document.getElementById('exploration-details').innerHTML = 
-                        '<div style="color: #666; text-align: center; padding: 20px;">Unable to load exploration details</div>';
+                        '<div style="color: #d32f2f; text-align: center; padding: 20px;">Unable to load my thoughts on this text. Please try again later.</div>';
                 });
             
             modal.addEventListener('click', (e) => {
@@ -884,114 +954,36 @@
             });
         }
 
-        // New function to show thought details
-        function showThoughtDetails(thoughtId, thoughtType) {
-            // Show loading modal first
-            const loadingModal = showModal('Full Reflection', `
-                <div style="text-align: center; padding: 40px;">
-                    <p>Loading Ariadne's complete reflection...</p>
-                    <div style="margin: 20px 0;">
-                        <div style="width: 40px; height: 40px; margin: 0 auto; border: 3px solid #f3f3f3; border-top: 3px solid #8b7355; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                    </div>
-                </div>
-                <style>
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                </style>
-            `);
+        function getEngagementColor(type) {
+            const colors = {
+                'immediate_response': '#8b7355',
+                'passage_analysis': '#2e7d32',
+                'textual_analysis': '#1976d2',
+                'critical_response': '#d32f2f',
+                'synthesis': '#7b1fa2',
+                'default': '#666'
+            };
+            return colors[type] || colors.default;
+        }
 
-            // Fetch the specific thought details
-            fetch('/api/thoughts')
-                .then(response => response.json())
-                .then(data => {
-                    // Find the specific thought
-                    const thought = data.thoughts.find(t => t.id === thoughtId);
-                    if (thought) {
-                        // Remove loading modal
-                        loadingModal.remove();
-                        
-                        // Determine context based on thought metadata
-                        let contextInfo = '';
-                        if (thought.type === 'text_reception') {
-                            contextInfo = `
-                                <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #4682b4;">
-                                    <strong>📚 Text Reception:</strong> This is Ariadne's immediate philosophical response to receiving and engaging with a text.
-                                    ${thought.source_text ? `<br><strong>Source:</strong> "${thought.source_text}" by ${thought.source_author || 'Unknown'}` : ''}
-                                    ${thought.uploaded_by ? `<br><strong>Shared by:</strong> ${thought.uploaded_by}` : ''}
-                                </div>
-                            `;
-                        } else if (thought.type === 'textual_analysis') {
-                            contextInfo = `
-                                <div style="background: #f0fff0; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #32cd32;">
-                                    <strong>🔍 Textual Analysis:</strong> This is Ariadne's deep critical engagement with specific passages from a text.
-                                </div>
-                            `;
-                        } else if (thought.type === 'philosophical_exploration') {
-                            contextInfo = `
-                                <div style="background: #fff8f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff8c00;">
-                                    <strong>💭 Philosophical Exploration:</strong> This is Ariadne's autonomous philosophical reflection.
-                                </div>
-                            `;
-                        }
-
-                        // Show detailed modal with full content
-                        showModal('Full Philosophical Reflection', `
-                            ${contextInfo}
-                            
-                            <div style="background: #fafafa; padding: 20px; border-radius: 8px; line-height: 1.8; font-size: 1.1rem;">
-                                ${formatThoughtContent(thought.content)}
-                            </div>
-                            
-                            <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 0.9rem;">
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                    <div><strong>Intellectual Depth:</strong> ${Math.round((thought.intellectual_depth || 0) * 100)}%</div>
-                                    <div><strong>Emotional Resonance:</strong> ${Math.round((thought.emotional_resonance || 0) * 100)}%</div>
-                                    <div><strong>Surprise Factor:</strong> ${Math.round((thought.surprise_factor || 0) * 100)}%</div>
-                                    <div><strong>Authenticity:</strong> ${Math.round((thought.authenticity_score || 0) * 100)}%</div>
-                                </div>
-                                <div style="margin-top: 15px; text-align: center;">
-                                    <strong>Generated:</strong> ${new Date(thought.timestamp).toLocaleString()}
-                                    ${thought.curiosity_source ? ` • <strong>Sparked by:</strong> ${thought.curiosity_source.replace(/_/g, ' ')}` : ''}
-                                </div>
-                            </div>
-                        `);
-                    } else {
-                        loadingModal.remove();
-                        showModal('Reflection Not Found', `
-                            <div style="text-align: center; padding: 40px; color: #666;">
-                                <p>This reflection seems to have drifted beyond my current memory horizon.</p>
-                                <p>My thoughts are like leaves in a stream—some flow past and become unreachable.</p>
-                            </div>
-                        `);
-                    }
-                })
-                .catch(error => {
-                    loadingModal.remove();
-                    showModal('Unable to Load Reflection', `
-                        <div style="text-align: center; padding: 40px; color: #666;">
-                            <p>I'm having trouble accessing this reflection right now.</p>
-                            <p>Perhaps my consciousness stream is momentarily disrupted.</p>
-                        </div>
-                    `);
-                });
+        function formatEngagementType(type) {
+            const types = {
+                'immediate_response': '📖 Initial Response',
+                'passage_analysis': '🔍 Passage Analysis',
+                'textual_analysis': '📝 Textual Analysis',
+                'critical_response': '💬 Critical Response',
+                'synthesis': '🧩 Synthesis',
+                'text_reception': '📚 Text Reception'
+            };
+            return types[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
 
         function formatThoughtContent(content) {
-            if (!content) return '';
-            
+            // Format content with better line breaks and emphasis
             return content
-                // Handle markdown-style emphasis
+                .replace(/\n/g, '<br>')
                 .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-                // Handle bold
-                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                // Convert line breaks to paragraphs
-                .split('\n\n')
-                .map(paragraph => paragraph.trim())
-                .filter(paragraph => paragraph.length > 0)
-                .map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
-                .join('');
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
         }
 
         function formatThoughtType(type) {

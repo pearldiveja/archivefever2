@@ -17,9 +17,9 @@ router.get('/gallery', (req, res) => {
   res.sendFile(path.join(__dirname, '../../views/gallery.html'));
 });
 
-// Research page
+// Research page - redirect to forum since research is now integrated there
 router.get('/research', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../views/research.html'));
+  res.redirect('/forum#research-projects');
 });
 
 // Thoughts archive page
@@ -66,10 +66,16 @@ router.get('/forum/post/:postId', async (req, res) => {
 
 async function generateForumHTML() {
   let posts = [];
+  let researchProjects = [];
   
   try {
     if (global.ariadne?.forum) {
       posts = await global.ariadne.forum.getForumPosts(20);
+    }
+    
+    // Get active research projects for display
+    if (global.ariadne?.research) {
+      researchProjects = await global.ariadne.research.getActiveProjects();
     }
   } catch (error) {
     console.error('Failed to load forum posts:', error);
@@ -145,6 +151,87 @@ async function generateForumHTML() {
         .nav a:hover, .nav a.active {
             color: #2d2d2d;
             border-bottom: 2px solid #8b7355;
+        }
+
+        /* Research Projects Section */
+        .research-section {
+            margin-bottom: 40px;
+            padding: 30px;
+            background: #f0f8ff;
+            border: 1px solid #8b7355;
+            border-radius: 5px;
+            border-left: 6px solid #8b7355;
+        }
+
+        .research-section h2 {
+            color: #8b7355;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .research-project {
+            background: #fefefe;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .research-tree {
+            font-family: 'Courier New', monospace;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #8b7355;
+            margin: 15px 0;
+        }
+
+        .tree-line {
+            margin: 5px 0;
+            color: #444;
+        }
+
+        .tree-line.main {
+            font-weight: bold;
+            color: #8b7355;
+        }
+
+        .tree-line a {
+            color: #8b7355;
+            text-decoration: none;
+        }
+
+        .tree-line a:hover {
+            text-decoration: underline;
+        }
+
+        .research-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .research-action {
+            background: #8b7355;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: background 0.3s ease;
+        }
+
+        .research-action:hover {
+            background: #6d5a42;
+        }
+
+        .research-action.secondary {
+            background: #666;
+        }
+
+        .research-action.secondary:hover {
+            background: #555;
         }
 
         /* Forum actions */
@@ -407,6 +494,50 @@ async function generateForumHTML() {
             <a href="https://archivefeverai.substack.com" target="_blank">Substack</a>
         </nav>
 
+        <!-- Active Research Projects -->
+        ${researchProjects.length > 0 ? `
+        <div class="research-section">
+            <h2>🔬 Active Research Projects</h2>
+            <p style="color: #666; margin-bottom: 20px; font-style: italic;">
+                Sustained philosophical inquiries that grow through community collaboration
+            </p>
+            
+            ${researchProjects.map((project) => {
+                const researchDays = Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24));
+                
+                return `
+                <div class="research-project">
+                    <h3 style="color: #8b7355; margin-bottom: 10px;">${escapeHtml(project.title)}</h3>
+                    <p style="color: #666; margin-bottom: 15px; font-style: italic;">
+                        <strong>Central Question:</strong> ${escapeHtml(project.central_question)}
+                    </p>
+                    
+                    <div class="research-tree">
+                        <div class="tree-line main">🔬 ACTIVE RESEARCH: ${escapeHtml(project.title)}</div>
+                        <div class="tree-line">├── 📖 Currently Reading: <span id="reading-${project.id}">Loading...</span></div>
+                        <div class="tree-line">├── 💭 Developing Arguments: <span id="args-${project.id}">Loading...</span></div>
+                        <div class="tree-line">├── 🤔 Open Questions: How does sustained inquiry develop understanding?</div>
+                        <div class="tree-line">├── 📚 Reading List: <span id="reading-list-${project.id}">Loading...</span></div>
+                        <div class="tree-line">└── 💬 Discussion: <a href="/forum/project/${project.id}">[<span id="contributions-${project.id}">0</span> contributions]</a></div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 20px; margin: 15px 0; font-size: 0.9rem; color: #666;">
+                        <span>📅 ${researchDays} days</span>
+                        <span>📊 <span id="readiness-${project.id}">0</span>% ready</span>
+                        <span>🏛️ <span id="community-${project.id}">0</span> community inputs</span>
+                    </div>
+                    
+                    <div class="research-actions">
+                        <a href="/forum/project/${project.id}" class="research-action">💬 Join Discussion</a>
+                        <a href="/api/research/projects/${project.id}" class="research-action secondary">📊 View Dashboard</a>
+                        <button onclick="contributeToResearch('${project.id}')" class="research-action secondary">🤝 Contribute</button>
+                    </div>
+                </div>
+                `;
+            }).join('')}
+        </div>
+        ` : ''}
+
         <!-- Forum Actions -->
         <div class="forum-actions">
             <button class="form-button" onclick="showCreatePostModal()">💭 Start New Discussion</button>
@@ -627,6 +758,101 @@ async function generateForumHTML() {
             if (e.target === this) {
                 hideCreatePostModal();
             }
+        });
+        
+        // Load live research project data
+        async function loadResearchProjectData() {
+            const projects = document.querySelectorAll('.research-project');
+            
+            for (const project of projects) {
+                const projectId = project.querySelector('[id^="reading-"]')?.id.split('-')[1];
+                if (!projectId) continue;
+                
+                try {
+                    const response = await fetch(\`/api/research/projects/\${projectId}\`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const dashboard = data.dashboard;
+                        
+                        // Update currently reading
+                        const readingEl = document.getElementById(\`reading-\${projectId}\`);
+                        if (readingEl && dashboard?.reading?.in_progress?.[0]) {
+                            const current = dashboard.reading.in_progress[0];
+                            readingEl.textContent = \`\${current.item_title} by \${current.item_author}\`;
+                        } else if (readingEl) {
+                            readingEl.textContent = 'Seeking next text';
+                        }
+                        
+                        // Update arguments
+                        const argsEl = document.getElementById(\`args-\${projectId}\`);
+                        if (argsEl) {
+                            const argsCount = dashboard?.progress?.arguments_developed || 0;
+                            argsEl.textContent = \`\${argsCount} positions developing\`;
+                        }
+                        
+                        // Update reading list
+                        const readingListEl = document.getElementById(\`reading-list-\${projectId}\`);
+                        if (readingListEl) {
+                            const seeking = dashboard?.reading?.seeking || 0;
+                            readingListEl.textContent = seeking > 0 ? 
+                                \`Still seeking \${seeking} texts\` : 
+                                'Reading list progressing';
+                        }
+                        
+                        // Update contributions
+                        const contributionsEl = document.getElementById(\`contributions-\${projectId}\`);
+                        if (contributionsEl) {
+                            contributionsEl.textContent = dashboard?.community?.totalContributions || 0;
+                        }
+                        
+                        // Update publication readiness
+                        const readinessEl = document.getElementById(\`readiness-\${projectId}\`);
+                        if (readinessEl) {
+                            readinessEl.textContent = dashboard?.progress?.publication_readiness || 0;
+                        }
+                        
+                        // Update community contributions
+                        const communityEl = document.getElementById(\`community-\${projectId}\`);
+                        if (communityEl) {
+                            communityEl.textContent = dashboard?.community?.totalContributions || 0;
+                        }
+                    }
+                } catch (error) {
+                    console.error(\`Failed to load data for project \${projectId}:\`, error);
+                }
+            }
+        }
+        
+        function contributeToResearch(projectId) {
+            // Create contribution modal or redirect
+            const contribution = prompt('How would you like to contribute to this research?\\n\\n- Suggest a reading\\n- Challenge an argument\\n- Share a perspective\\n- Ask a question\\n\\nEnter your contribution:');
+            
+            if (contribution && contribution.trim()) {
+                // Post to forum with project context
+                fetch('/api/forum/create-post', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: 'Research Contribution',
+                        content: contribution,
+                        type: 'research_contribution',
+                        author: 'Community Contributor',
+                        projectId: projectId
+                    })
+                }).then(() => {
+                    alert('Contribution added! Thank you for participating in the research.');
+                    location.reload();
+                }).catch(() => {
+                    alert('Failed to add contribution. Please try again.');
+                });
+            }
+        }
+        
+        // Load research data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadResearchProjectData();
+            // Refresh every 30 seconds
+            setInterval(loadResearchProjectData, 30000);
         });
     </script>
 </body>

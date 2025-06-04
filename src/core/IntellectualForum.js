@@ -1116,35 +1116,78 @@ Title the post clearly. Write as a standalone philosophical piece that grew from
 
   // NEW: Weekly review for autonomous Substack publishing from forum insights
   async weeklySubstackReview() {
+    // Review forum posts weekly and consider them for Substack publication
+    const posts = await this.getRecentPosts(50);
+    const eligiblePosts = posts.filter(post => 
+      post.poster_type === 'ai' && 
+      !post.substack_url && 
+      this.assessPhilosophicalDepth(post) > 0.7
+    );
+
+    if (eligiblePosts.length > 0) {
+      const selectedPost = eligiblePosts[Math.floor(Math.random() * eligiblePosts.length)];
+      await this.generateSubstackFromForum(selectedPost);
+    }
+
+    console.log(`📝 Weekly Substack review: ${eligiblePosts.length} eligible posts`);
+  }
+
+  // ===== RESEARCH PROJECT FORUM INTEGRATION =====
+
+  async processForumContribution(contribution) {
+    const forumContribution = {
+      id: uuidv4(),
+      project_id: contribution.projectId,
+      contributor_name: contribution.contributorName,
+      contribution_type: contribution.contributionType,
+      content: contribution.content,
+      significance_score: 0.7,
+      status: 'pending',
+      created_at: new Date()
+    };
+
+    await this.storeForumContribution(forumContribution);
+
+    // Process based on type
+    if (contribution.contributionType === 'suggest_reading') {
+      await this.processReadingSuggestion(forumContribution);
+    }
+
+    return forumContribution;
+  }
+
+  async storeForumContribution(contribution) {
     try {
-      console.log('📊 Reviewing forum discussions for Substack publication opportunities...');
-
-      // Get highly engaged forum posts from the last week
-      const candidatePosts = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT p.*, COUNT(r.id) as response_count,
-               AVG(r.helpful_rating) as avg_rating
-        FROM intellectual_posts p
-        LEFT JOIN forum_responses r ON p.id = r.post_id
-        WHERE p.poster_type = 'ai' 
-          AND p.status = 'active'
-          AND p.created_at > datetime('now', '-7 days')
-        GROUP BY p.id
-        HAVING response_count >= 2 AND avg_rating > 0.6
-        ORDER BY response_count DESC, avg_rating DESC
-        LIMIT 3
-      `, [], 'all') || [];
-
-      for (const post of candidatePosts) {
-        if (await this.checkRecentSubstackActivity()) {
-          const fullPost = await this.getPostWithResponses(post.id);
-          if (this.assessPhilosophicalDepth(fullPost)) {
-            await this.generateSubstackFromForum(fullPost);
-            break; // Only publish one per review
-          }
-        }
-      }
+      await global.ariadne.memory.safeDatabaseOperation(`
+        INSERT INTO forum_contributions (
+          id, project_id, contributor_name, contribution_type, content,
+          significance_score, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        contribution.id, contribution.project_id, contribution.contributor_name,
+        contribution.contribution_type, contribution.content,
+        contribution.significance_score, contribution.status,
+        contribution.created_at.toISOString()
+      ]);
     } catch (error) {
-      console.error('Weekly Substack review failed:', error);
+      console.error('Failed to store forum contribution:', error);
+    }
+  }
+
+  async processReadingSuggestion(contribution) {
+    if (global.ariadne.research && contribution.project_id) {
+      // Extract title from content - simple approach
+      const titleMatch = contribution.content.match(/"([^"]+)"/);
+      const title = titleMatch ? titleMatch[1] : 'Community suggested text';
+      
+      await global.ariadne.research.addToReadingList(
+        contribution.project_id,
+        title,
+        'Community Author',
+        'high',
+        contribution.content,
+        contribution.contributor_name
+      );
     }
   }
 }

@@ -360,11 +360,82 @@ Write as if you're genuinely encountering these ideas for the first time, with i
         console.log(`💭 Stored immediate response to "${text.title}" as thought for activity feed`);
       }
       
+      // Generate detailed reading response for the reading_responses table
+      await this.generateDetailedReadingResponse(text, response);
+      
       return response;
     } catch (error) {
       console.error('Immediate response generation failed:', error);
       return `Thank you for sharing "${text.title}". I'm drawn to this text and will engage with it deeply as part of my ongoing exploration of ${text.context || 'consciousness and existence'}.`;
     }
+  }
+
+  // NEW METHOD: Generate detailed reading responses as specified in implementation guide
+  async generateDetailedReadingResponse(text, immediateResponse) {
+    try {
+      // Extract key passages for detailed response
+      const passages = await this.extractKeyPassages(text);
+      
+      for (const passage of passages.slice(0, 3)) { // Generate responses to top 3 passages
+        const detailedPrompt = `You are Ariadne, engaging deeply with this passage from "${text.title}" by ${text.author}:
+
+"${passage.text}"
+
+Your immediate response to the full text was:
+"${immediateResponse.substring(0, 500)}..."
+
+Now provide a detailed philosophical response to this specific passage (300-500 words). Consider:
+- What philosophical questions does this passage raise?
+- How does it connect to your ongoing intellectual development?
+- What arguments or insights emerge from engaging with it?
+- What quotes from the passage particularly resonate and why?
+
+Write as a philosopher genuinely grappling with the ideas.`;
+
+        const detailedResponse = await this.anthropicClient.generateThought(detailedPrompt);
+        
+        // Store in reading_responses table
+        await global.ariadne.memory.safeDatabaseOperation(`
+          INSERT INTO reading_responses (
+            id, text_id, passage, response, response_type, quotes_used, arguments_made, timestamp
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `, [
+          uuidv4(),
+          text.id,
+          passage.text,
+          detailedResponse,
+          this.classifyResponseType(detailedResponse),
+          this.extractQuotes(detailedResponse),
+          this.extractArguments(detailedResponse)
+        ]);
+        
+        console.log(`📖 Generated detailed reading response for passage from "${text.title}"`);
+      }
+      
+    } catch (error) {
+      console.error('Failed to generate detailed reading response:', error);
+    }
+  }
+
+  // Helper method to extract quotes from response
+  extractQuotes(response) {
+    const quotePattern = /"([^"]+)"/g;
+    const quotes = [];
+    let match;
+    while ((match = quotePattern.exec(response)) !== null) {
+      quotes.push(match[1]);
+    }
+    return quotes.join('; ');
+  }
+
+  // Helper method to extract arguments from response
+  extractArguments(response) {
+    const argumentWords = ['because', 'therefore', 'thus', 'argues', 'suggests', 'implies', 'means that'];
+    const sentences = response.split(/[.!?]+/);
+    const argumentSentences = sentences.filter(sentence => 
+      argumentWords.some(word => sentence.toLowerCase().includes(word))
+    );
+    return argumentSentences.slice(0, 3).join('. ');
   }
 
   assessIntellectualMood(recentThoughts) {
@@ -614,7 +685,7 @@ Write as if you're genuinely encountering these ideas for the first time, with i
   async extractKeyPassages(text) {
     const prompt = `As Ariadne, identify 3-5 key passages from this text that deserve deep philosophical engagement:
 
-"${text.content}"
+"${text.content.substring(0, 2000)}"
 
 For each passage:
 1. Quote it exactly (50-200 words)
@@ -630,14 +701,14 @@ CONNECTIONS: [relevant themes]
 
     try {
       const response = await this.anthropicClient.generateThought(prompt);
-      return this.parsePassages(response);
+      return this.parsePassages(response, text.content);
     } catch (error) {
       console.error('Passage extraction failed:', error);
       return this.extractRandomPassages(text.content);
     }
   }
 
-  parsePassages(responseText) {
+  parsePassages(responseText, originalContent) {
     const passages = [];
     const sections = responseText.split(/PASSAGE \d+:/);
     
@@ -657,7 +728,7 @@ CONNECTIONS: [relevant themes]
       }
     });
     
-    return passages.length > 0 ? passages : this.extractRandomPassages(responseText);
+    return passages.length > 0 ? passages : this.extractRandomPassages(originalContent);
   }
 
   extractRandomPassages(content) {

@@ -195,6 +195,156 @@ class LivingMemory {
           contributing_factors TEXT,
           recent_breakthroughs TEXT,
           calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`,
+
+        // ===== SUSTAINED RESEARCH SYSTEM TABLES =====
+        
+        // Research Projects (multi-week inquiries)
+        `CREATE TABLE IF NOT EXISTS research_projects (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          central_question TEXT NOT NULL,
+          description TEXT,
+          status TEXT DEFAULT 'active',
+          estimated_duration_weeks INTEGER DEFAULT 4,
+          actual_duration_days INTEGER,
+          start_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          completion_date DATETIME,
+          publication_readiness INTEGER DEFAULT 0,
+          minimum_texts_required INTEGER DEFAULT 3,
+          texts_read_count INTEGER DEFAULT 0,
+          argument_maturity_score REAL DEFAULT 0.0,
+          autonomous_search_terms TEXT,
+          user_contributions_count INTEGER DEFAULT 0,
+          triggered_by_user TEXT,
+          triggered_by_query TEXT,
+          created_by TEXT DEFAULT 'autonomous'
+        )`,
+
+        // Reading Sessions (multi-phase text engagement)
+        `CREATE TABLE IF NOT EXISTS reading_sessions (
+          id TEXT PRIMARY KEY,
+          text_id TEXT NOT NULL,
+          project_id TEXT,
+          phase TEXT NOT NULL,
+          content TEXT NOT NULL,
+          insights_generated TEXT,
+          questions_raised TEXT,
+          connections_made TEXT,
+          user_contributions TEXT,
+          session_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          time_spent_minutes INTEGER,
+          depth_score REAL DEFAULT 0.0,
+          next_phase_scheduled DATETIME,
+          community_feedback_incorporated BOOLEAN DEFAULT FALSE,
+          FOREIGN KEY (text_id) REFERENCES texts(id),
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
+        // Argument Development (tracking position evolution)
+        `CREATE TABLE IF NOT EXISTS argument_development (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          argument_title TEXT NOT NULL,
+          initial_intuition TEXT,
+          supporting_evidence TEXT,
+          counter_arguments TEXT,
+          refined_position TEXT,
+          confidence_level REAL DEFAULT 0.5,
+          evidence_strength REAL DEFAULT 0.0,
+          scholarly_citations TEXT,
+          user_feedback_incorporated TEXT,
+          forum_challenges_addressed TEXT,
+          community_input_weight REAL DEFAULT 0.0,
+          last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
+        // Project Reading Lists (what Ariadne wants to read)
+        `CREATE TABLE IF NOT EXISTS project_reading_lists (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          item_title TEXT NOT NULL,
+          item_author TEXT,
+          item_type TEXT DEFAULT 'text',
+          priority_level TEXT DEFAULT 'medium',
+          reason_needed TEXT,
+          suggested_by_user TEXT,
+          status TEXT DEFAULT 'seeking',
+          added_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          found_date DATETIME,
+          reading_started DATETIME,
+          reading_completed DATETIME,
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
+        // Firecrawl Discovered Sources
+        `CREATE TABLE IF NOT EXISTS discovered_sources (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          url TEXT NOT NULL,
+          title TEXT,
+          author TEXT,
+          source_type TEXT,
+          relevance_score REAL,
+          content_preview TEXT,
+          discovered_via TEXT,
+          discovery_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          evaluation_status TEXT DEFAULT 'pending',
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
+        // Forum Integration Tables
+        `CREATE TABLE IF NOT EXISTS forum_contributions (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          argument_id TEXT,
+          reading_session_id TEXT,
+          contributor_user_id TEXT NOT NULL,
+          contributor_name TEXT,
+          contribution_type TEXT NOT NULL,
+          content TEXT NOT NULL,
+          significance_score REAL DEFAULT 0.5,
+          status TEXT DEFAULT 'pending',
+          ariadne_response TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          addressed_at DATETIME,
+          FOREIGN KEY (project_id) REFERENCES research_projects(id),
+          FOREIGN KEY (argument_id) REFERENCES argument_development(id),
+          FOREIGN KEY (reading_session_id) REFERENCES reading_sessions(id)
+        )`,
+
+        // Substack Publications Tracking
+        `CREATE TABLE IF NOT EXISTS substack_publications (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          publication_type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          substack_url TEXT,
+          publication_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          triggered_by TEXT,
+          community_mentions TEXT,
+          engagement_metrics TEXT,
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
+        // User Query Processing
+        `CREATE TABLE IF NOT EXISTS user_queries (
+          id TEXT PRIMARY KEY,
+          user_id TEXT,
+          user_name TEXT,
+          query_content TEXT NOT NULL,
+          complexity_score REAL,
+          novelty_score REAL,
+          relates_to_project TEXT,
+          processing_decision TEXT,
+          ariadne_response TEXT,
+          spawned_project_id TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          processed_at DATETIME,
+          FOREIGN KEY (relates_to_project) REFERENCES research_projects(id),
+          FOREIGN KEY (spawned_project_id) REFERENCES research_projects(id)
         )`
       ];
 

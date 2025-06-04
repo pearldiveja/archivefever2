@@ -104,6 +104,43 @@ The permanent intellectual life begins.`;
       }
     });
 
+    // Enhanced autonomous cycle with research integration
+    setInterval(async () => {
+      try {
+        if (!this.isAwake || !this.isInitialized) return;
+        
+        // Standard autonomous activities
+        await this.autonomousThinking();
+        
+        // NEW: Research project advancement
+        if (this.research) {
+          await this.research.advanceActiveProjects();
+        }
+        
+        // Enhanced forum engagement with research integration
+        if (this.forum) {
+          await this.forum.considerSpontaneousPost();
+          
+          // NEW: Check for research-worthy community contributions
+          await this.forum.processResearchContributions();
+        }
+        
+        // NEW: Check for Substack publication opportunities
+        if (this.research) {
+          await this.research.checkPublicationOpportunities();
+        }
+        
+        // Visual contemplation
+        if (Math.random() < 0.3) {
+          await this.contemplateVisualMetaphor();
+        }
+        
+        console.log('🔄 Enhanced autonomous cycle completed');
+      } catch (error) {
+        console.error('Enhanced autonomous cycle error:', error);
+      }
+    }, 20 * 60 * 1000); // Every 20 minutes
+
     console.log('🔄 Autonomous cycles initiated');
   }
 
