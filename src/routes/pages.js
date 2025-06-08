@@ -2,36 +2,55 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 
-// Archive page
-router.get('/archive', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../views/archive.html'));
-});
+// Archive page - using dynamic generation (see bottom of file)
 
-// Library page
-router.get('/library', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../views/library.html'));
-});
+// Library page - using dynamic generation (see below)
 
 // Gallery page
 router.get('/gallery', (req, res) => {
   res.sendFile(path.join(__dirname, '../../views/gallery.html'));
 });
 
-// Research page - redirect to forum since research is now integrated there
-router.get('/research', (req, res) => {
-  res.redirect('/forum#research-projects');
-});
-
-// NEW: Unified Content Dashboard
-router.get('/content', async (req, res) => {
+// Projects - research containers with proper functionality  
+router.get('/projects', async (req, res) => {
   try {
-    const html = await generateContentDashboardHTML();
+    const html = await generateProjectsHTML();
     res.send(html);
   } catch (error) {
-    console.error('Content dashboard error:', error);
-    res.status(500).send('Content dashboard temporarily unavailable');
+    console.error('Projects page error:', error);
+    res.status(500).send('Projects page temporarily unavailable');
   }
 });
+
+// Library - comprehensive text archive with Ariadne's engagement history
+router.get('/library', async (req, res) => {
+  try {
+    const html = await generateLibraryHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Library page error:', error);
+    res.status(500).send('Library page temporarily unavailable');
+  }
+});
+
+// Legacy research redirect
+router.get('/research', (req, res) => res.redirect('/projects'));
+
+// Stream - unified activity feed
+router.get('/stream', async (req, res) => {
+  try {
+    const html = await generateStreamHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Stream error:', error);
+    res.status(500).send('Stream temporarily unavailable');
+  }
+});
+
+// Legacy route redirects
+router.get('/dashboard', (req, res) => res.redirect('/stream'));
+router.get('/content', (req, res) => res.redirect('/stream'));
+router.get('/archive', (req, res) => res.redirect('/stream'));
 
 // Thoughts archive page
 router.get('/thoughts', (req, res) => {
@@ -871,143 +890,274 @@ async function generateForumHTML() {
 }
 
 function generatePostDetailHTML(post) {
+  // Enhanced markdown renderer for academic formatting with footnote citations
+  function renderMarkdown(text) {
+    return text
+      // Headers (## Title)
+      .replace(/^## (.+)$/gm, '<h2 style="color: #8b7355; margin: 2rem 0 1rem 0; font-family: Playfair Display; font-size: 1.5rem;">$1</h2>')
+      // Bold text (**text**)
+      .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #8b7355;">$1</strong>')
+      // Works Cited section header
+      .replace(/^\*\*Works Cited:\*\*$/gm, '<h3 style="color: #8b7355; margin: 2rem 0 1rem 0; font-family: Playfair Display; border-top: 1px solid #ddd; padding-top: 1rem;">Works Cited:</h3>')
+      // Citations section separator
+      .replace(/^---$/gm, '<hr style="border: 1px solid #ddd; margin: 2rem 0;">')
+      // Handle numbered lists in citations
+      .replace(/^\[(\d+)\] (.+)$/gm, '<div style="margin: 0.5rem 0; padding-left: 1rem;"><strong>[$1]</strong> $2</div>')
+      // Handle bullet points
+      .replace(/^\* (.+)$/gm, '<li style="margin: 0.5rem 0;">$1</li>')
+      // Handle regular numbered lists
+      .replace(/^\d+\. (.+)$/gm, '<li style="margin: 0.5rem 0;">$1</li>')
+      // Convert double line breaks to paragraph breaks
+      .split('\n\n')
+      .map(paragraph => {
+        if (paragraph.trim() && 
+            !paragraph.includes('<h2') && 
+            !paragraph.includes('<h3') && 
+            !paragraph.includes('<hr') && 
+            !paragraph.includes('<li') &&
+            !paragraph.includes('<div style="margin: 0.5rem 0')) {
+          return `<p style="margin-bottom: 1.2rem; line-height: 1.7;">${paragraph.trim()}</p>`;
+        }
+        return paragraph;
+      })
+      .join('\n');
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(post.title)} - Forum</title>
+    <title>${escapeHtml(post.title)} - Conversation</title>
     <style>
-        /* Same base styles as forum page */
-        :root {
-            --deep-brown: #2c1810;
-            --warm-brown: #3d2317;
-            --bronze-thread: #8b7355;
-            --bright-bronze: #d4af37;
-            --parchment: #f4f1e8;
-            --shadow-brown: rgba(44, 24, 16, 0.8);
-        }
+        ${getSharedStyles()}
         
-        body {
-            font-family: 'Georgia', 'Times New Roman', serif;
-            background: linear-gradient(135deg, var(--deep-brown) 0%, var(--warm-brown) 100%);
-            color: var(--parchment);
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 800px;
+        .conversation-container {
+            max-width: 900px;
             margin: 0 auto;
-        }
-        
-        .post-detail {
-            background: rgba(139, 115, 85, 0.1);
-            border: 1px solid var(--bronze-thread);
-            border-radius: 8px;
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-        
-        .responses {
-            background: rgba(139, 115, 85, 0.05);
-            border: 1px solid var(--bronze-thread);
-            border-radius: 8px;
             padding: 20px;
         }
         
-        .response {
-            border-bottom: 1px solid rgba(139, 115, 85, 0.2);
-            padding: 20px 0;
+        .conversation-header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border-left: 6px solid #8b7355;
         }
         
-        .response:last-child {
-            border-bottom: none;
+        .conversation-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            color: #8b7355;
+            margin-bottom: 1rem;
+            line-height: 1.3;
         }
         
-        .ariadne-button {
-            background: linear-gradient(135deg, var(--bronze-thread), var(--bright-bronze));
-            color: var(--deep-brown);
-            padding: 12px 24px;
+        .conversation-meta {
+            color: #666;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .conversation-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            line-height: 1.7;
+        }
+        
+        .conversation-content h2 {
+            color: #8b7355;
+            margin: 1.5rem 0 0.8rem 0;
+            font-family: 'Playfair Display', serif;
+        }
+        
+        .conversation-content p {
+            margin-bottom: 1rem;
+        }
+        
+        .conversation-content strong {
+            color: #8b7355;
+        }
+        
+        .conversation-content ul, ol {
+            margin: 1rem 0;
+            padding-left: 2rem;
+        }
+        
+        .conversation-content li {
+            margin: 0.5rem 0;
+        }
+        
+        .conversation-content hr {
+            border: 1px solid #ddd;
+            margin: 2rem 0;
+        }
+        
+        .conversation-content a {
+            color: #8b7355;
+            text-decoration: underline;
+        }
+        
+        .conversation-content a:hover {
+            color: #a68a6b;
+        }
+        
+        .responses-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        
+        .response-item {
+            border-left: 3px solid #e0e0e0;
+            padding-left: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+        }
+        
+        .response-meta {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .response-content {
+            line-height: 1.6;
+        }
+        
+        .reply-form {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .reply-input {
+            width: 100%;
+            min-height: 120px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            margin-bottom: 10px;
+        }
+        
+        .reply-input:focus {
+            outline: none;
+            border-color: #8b7355;
+        }
+        
+        .name-input {
+            width: 200px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-right: 10px;
+        }
+        
+        .reply-submit {
+            background: #8b7355;
+            color: white;
             border: none;
-            border-radius: 5px;
-            font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 6px;
             cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .reply-submit:hover {
+            background: #a68a6b;
+        }
+        
+        .back-nav {
+            margin-bottom: 20px;
+        }
+        
+        .back-link {
+            color: #8b7355;
             text-decoration: none;
-            margin: 10px 5px;
+            font-weight: 500;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div style="margin-bottom: 20px;">
-            <a href="/forum" class="ariadne-button">← Back to Forum</a>
+    <div class="conversation-container">
+        <div class="back-nav">
+            <a href="/stream" class="back-link">
+                ← Back to Stream
+            </a>
         </div>
         
-        <div class="post-detail">
-            <h1 style="color: var(--bright-bronze); margin-bottom: 10px;">${escapeHtml(post.title)}</h1>
-            <div style="opacity: 0.7; margin-bottom: 20px;">
-                by ${escapeHtml(post.posted_by)} • ${formatDate(post.created_at)}
+        <div class="conversation-header">
+            <h1 class="conversation-title">${escapeHtml(post.title)}</h1>
+            <div class="conversation-meta">
+                Posted by ${escapeHtml(post.posted_by || 'Anonymous')} • 
+                ${new Date(post.created_at).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                })} • 
+                ${post.response_count || 0} responses
             </div>
-            
-            <div style="white-space: pre-wrap; margin: 20px 0;">
-                ${escapeHtml(post.content)}
-            </div>
-            
-            ${post.seeking_specifically ? `
-                <div style="background: rgba(212, 175, 55, 0.1); padding: 15px; border-radius: 5px; margin-top: 20px;">
-                    <strong>🔍 Seeking:</strong> ${escapeHtml(post.seeking_specifically)}
-                </div>
-            ` : ''}
         </div>
         
-        <div class="responses">
-            <h3 style="color: var(--bright-bronze); margin-bottom: 20px;">
-                💬 Responses (${post.responses.length})
-            </h3>
+        <div class="conversation-content">
+            ${renderMarkdown(escapeHtml(post.content))}
+        </div>
+        
+        <div class="responses-section">
+            <h3 style="margin-bottom: 20px; color: #8b7355;">Discussion</h3>
             
-            ${post.responses.map(response => `
-                <div class="response">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <strong style="color: var(--bronze-thread);">${escapeHtml(response.responder_name)}</strong>
-                        <small style="opacity: 0.7;">${formatDate(response.created_at)}</small>
+            ${(post.responses || []).map(response => `
+                <div class="response-item">
+                    <div class="response-meta">
+                        <strong>${escapeHtml(response.responder_name || 'Anonymous')}</strong> • 
+                        ${new Date(response.created_at).toLocaleDateString()}
                     </div>
-                    <div style="white-space: pre-wrap;">
-                        ${escapeHtml(response.content)}
+                    <div class="response-content">
+                        ${renderMarkdown(escapeHtml(response.content))}
                     </div>
                 </div>
             `).join('')}
             
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--bronze-thread);">
-                <h4 style="color: var(--bright-bronze); margin-bottom: 15px;">Add Your Response</h4>
-                <form id="responseForm">
-                    <textarea id="responseContent" placeholder="Share your thoughts..." 
-                              style="width: 100%; min-height: 120px; padding: 10px; 
-                                     background: rgba(139, 115, 85, 0.1); border: 1px solid var(--bronze-thread);
-                                     color: var(--parchment); border-radius: 5px; font-family: inherit;"></textarea>
-                    <div style="margin: 15px 0;">
-                        <input type="text" id="responderName" placeholder="Your name (optional)" 
-                               style="padding: 8px; background: rgba(139, 115, 85, 0.1); 
-                                      border: 1px solid var(--bronze-thread); color: var(--parchment);
-                                      border-radius: 5px; font-family: inherit;">
-                    </div>
-                    <button type="submit" class="ariadne-button">Post Response</button>
-                </form>
+            <div class="reply-form">
+                <h4 style="margin-bottom: 15px; color: #8b7355;">Join the Conversation</h4>
+                <textarea 
+                    id="reply-content" 
+                    class="reply-input" 
+                    placeholder="Share your thoughts on this philosophical dialogue..."
+                ></textarea>
+                <div>
+                    <input 
+                        type="text" 
+                        id="reply-name" 
+                        class="name-input" 
+                        placeholder="Your name (optional)"
+                    >
+                    <button onclick="postResponse()" class="reply-submit">
+                        Post Response
+                    </button>
+                </div>
             </div>
         </div>
     </div>
     
     <script>
-        function formatDate(dateString) {
-            return new Date(dateString).toLocaleString();
-        }
-        
-        document.getElementById('responseForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const content = document.getElementById('responseContent').value.trim();
-            const name = document.getElementById('responderName').value.trim();
+        async function postResponse() {
+            const content = document.getElementById('reply-content').value.trim();
+            const authorName = document.getElementById('reply-name').value.trim();
             
             if (!content) {
                 alert('Please enter a response');
@@ -1018,26 +1168,27 @@ function generatePostDetailHTML(post) {
                 const response = await fetch('/api/forum/posts/${post.id}/respond', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
                         content: content,
-                        authorName: name || 'Anonymous'
+                        authorName: authorName || 'Anonymous'
                     })
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('Response posted successfully!');
-                    location.reload();
+                    // Reload the page to show the new response
+                    window.location.reload();
                 } else {
-                    alert('Failed to post response: ' + result.error);
+                    alert('Error posting response: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
+                console.error('Error posting response:', error);
                 alert('Error posting response: ' + error.message);
             }
-        });
+        }
     </script>
 </body>
 </html>`;
@@ -1109,7 +1260,7 @@ function formatDateContent(dateString) {
   return date.toLocaleDateString();
 }
 
-async function generateContentDashboardHTML() {
+async function generateStreamHTML() {
   let researchProjects = [];
   let recentDialogues = [];
   let recentThoughts = [];
@@ -1176,162 +1327,11 @@ async function generateContentDashboardHTML() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Content Dashboard - Archive Fever AI</title>
+    <title>Stream - Archive Fever AI</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        ${getSharedStyles()}
         
-        body {
-            font-family: Georgia, serif;
-            background: #fefefe;
-            color: #2d2d2d;
-            line-height: 1.6;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 50px;
-            padding-bottom: 30px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .title {
-            font-size: 2.5rem;
-            color: #8b7355;
-            margin-bottom: 10px;
-            font-weight: normal;
-        }
-        
-        .subtitle {
-            font-size: 1.1rem;
-            color: #666;
-            font-style: italic;
-        }
-        
-        /* Navigation */
-        .nav {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            margin-bottom: 40px;
-            padding: 20px;
-            background: #f8f8f8;
-            border-radius: 5px;
-            flex-wrap: wrap;
-        }
-        
-        .nav a {
-            color: #8b7355;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-        
-        .nav a:hover, .nav a.active {
-            color: #2d2d2d;
-            border-bottom: 2px solid #8b7355;
-        }
-        
-        /* Content Grid */
-        .content-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 30px;
-            margin-bottom: 40px;
-        }
-        
-        .content-section {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 25px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .section-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .section-icon {
-            font-size: 1.5rem;
-            margin-right: 10px;
-        }
-        
-        .section-title {
-            color: #8b7355;
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-        
-        .section-subtitle {
-            color: #666;
-            font-size: 0.9rem;
-            margin-left: auto;
-        }
-        
-        /* Content Items */
-        .content-item {
-            margin-bottom: 15px;
-            padding: 15px;
-            background: #f9f9f9;
-            border-radius: 5px;
-            border-left: 3px solid #8b7355;
-        }
-        
-        .content-item:last-child {
-            margin-bottom: 0;
-        }
-        
-        .item-title {
-            font-weight: 600;
-            color: #2d2d2d;
-            margin-bottom: 5px;
-        }
-        
-        .item-meta {
-            font-size: 0.85rem;
-            color: #666;
-            margin-bottom: 8px;
-        }
-        
-        .item-preview {
-            color: #444;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-        
-        .item-actions {
-            margin-top: 10px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .action-link {
-            font-size: 0.8rem;
-            color: #8b7355;
-            text-decoration: none;
-            padding: 4px 8px;
-            border: 1px solid #8b7355;
-            border-radius: 3px;
-            transition: all 0.3s ease;
-        }
-        
-        .action-link:hover {
-            background: #8b7355;
-            color: white;
-        }
-        
-        /* Stats */
+        /* Dashboard-specific styles */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1342,39 +1342,22 @@ async function generateContentDashboardHTML() {
         .stat-item {
             text-align: center;
             padding: 15px;
-            background: #f0f8ff;
-            border-radius: 5px;
+            background: linear-gradient(135deg, rgba(139, 115, 85, 0.05) 0%, rgba(139, 115, 85, 0.1) 100%);
+            border-radius: 8px;
+            border: 1px solid rgba(139, 115, 85, 0.1);
         }
         
         .stat-number {
-            font-size: 1.5rem;
-            font-weight: bold;
+            font-size: 1.8rem;
+            font-weight: 700;
             color: #8b7355;
+            font-family: 'Playfair Display', serif;
         }
         
         .stat-label {
             font-size: 0.9rem;
             color: #666;
-        }
-        
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 30px;
-            color: #666;
-            font-style: italic;
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-            .nav {
-                flex-direction: column;
-                gap: 15px;
-                text-align: center;
-            }
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -1382,23 +1365,26 @@ async function generateContentDashboardHTML() {
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1 class="title">Content Dashboard</h1>
-            <div class="subtitle">Unified view of all intellectual content and research</div>
+            <h1 class="title">Stream</h1>
+            <div class="subtitle">Archive Fever AI • Live Activity Feed</div>
+            <div class="header-description">Real-time stream of thoughts, dialogues, research, and intellectual development</div>
         </div>
 
-        <!-- Navigation -->
-        <nav class="nav">
-            <a href="/">Home</a>
-            <a href="/content" class="active">Dashboard</a>
-            <a href="/forum">Forum</a>
-            <a href="/thoughts">Archive</a>
-            <a href="/library">Library</a>
-            <a href="/gallery">Gallery</a>
-            <a href="https://archivefeverai.substack.com" target="_blank">Substack</a>
-        </nav>
+        ${getNavigation('stream')}
 
-        <!-- Content Sections -->
-        <div class="content-grid">
+                  <!-- Activity Filters -->
+          <div class="filter-section" style="margin-bottom: 30px; text-align: center;">
+              <div style="display: inline-flex; gap: 15px; background: white; padding: 15px; border-radius: 25px; border: 1px solid #e0e0e0; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                  <button class="filter-btn active" data-filter="all">All Activity</button>
+                  <button class="filter-btn" data-filter="thoughts">Thoughts</button>
+                  <button class="filter-btn" data-filter="dialogues">Dialogues</button>
+                  <button class="filter-btn" data-filter="research">Research</button>
+                  <button class="filter-btn" data-filter="reading">Reading</button>
+              </div>
+          </div>
+
+          <!-- Content Sections -->
+          <div class="content-grid">
             
             <!-- Active Research Projects -->
             <div class="content-section">
@@ -1633,9 +1619,11 @@ router.get('/forum', async (req, res) => {
 
 // SIMPLIFIED PAGE GENERATORS - Clean, focused content organization
 
-async function generateResearchPageHTML() {
+async function generateProjectsHTML() {
   let projects = [];
   let recentReadingSessions = [];
+  let forumPosts = [];
+  let recentPublications = [];
   
   try {
     if (global.ariadne?.research) {
@@ -1648,8 +1636,26 @@ async function generateResearchPageHTML() {
         FROM reading_sessions rs
         LEFT JOIN texts t ON rs.text_id = t.id
         ORDER BY rs.session_date DESC 
-        LIMIT 10
+        LIMIT 15
       `, [], 'all') || [];
+      
+      recentPublications = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, title, type, publication_platform, published_at, readiness_score
+        FROM publications 
+        WHERE type IN ('research_summary', 'treatise', 'academic_paper')
+        ORDER BY published_at DESC 
+        LIMIT 8
+      `, [], 'all') || [];
+    }
+    
+    if (global.ariadne?.forum) {
+      forumPosts = await global.ariadne.forum.getForumPosts(10) || [];
+      // Filter for research-related posts
+      forumPosts = forumPosts.filter(post => 
+        post.type === 'research_update' || 
+        post.content?.toLowerCase().includes('research') ||
+        post.title?.toLowerCase().includes('research')
+      );
     }
   } catch (error) {
     console.error('Failed to load research data:', error);
@@ -1660,54 +1666,217 @@ async function generateResearchPageHTML() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research - Archive Fever AI</title>
+    <title>Projects - Archive Fever AI</title>
     <style>
         ${getSharedStyles()}
+        
+        /* Research-specific enhancements */
+        .research-overview {
+            background: linear-gradient(135deg, rgba(139, 115, 85, 0.05) 0%, rgba(139, 115, 85, 0.1) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(139, 115, 85, 0.2);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .project-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #8b7355;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .project-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        
+        .project-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(139, 115, 85, 0.1);
+            color: #8b7355;
+            margin-bottom: 1rem;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #8b7355 0%, #a68a6b 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .research-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(139, 115, 85, 0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #8b7355;
+            font-family: 'Playfair Display', serif;
+        }
+        
+        .reading-phase {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: #e8f5e8;
+            color: #2d4a2d;
+            margin-left: 0.5rem;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1 class="title">Research Projects</h1>
-            <div class="subtitle">Deep philosophical inquiry and sustained intellectual exploration</div>
+            <div class="subtitle">Archive Fever AI • Deep Philosophical Investigation</div>
+            <div class="header-description">Active research containers with texts, dialogues, and collaborative analysis</div>
         </div>
 
-        ${getNavigation('research')}
+        ${getNavigation('projects')}
+
+        <div class="research-overview">
+            <h2 style="color: #8b7355; margin-bottom: 1rem; font-family: 'Playfair Display', serif;">🔬 Active Research Program</h2>
+            <p style="color: #666; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
+                Sustained philosophical investigations that develop over time through systematic reading, 
+                autonomous reflection, and collaborative engagement with human thinkers.
+            </p>
+            
+            <div class="research-stats">
+                <div class="stat-card">
+                    <div class="stat-number">${projects.length}</div>
+                    <div class="stat-label">Active Projects</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${recentReadingSessions.length}</div>
+                    <div class="stat-label">Reading Sessions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${recentPublications.length}</div>
+                    <div class="stat-label">Research Publications</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${forumPosts.length}</div>
+                    <div class="stat-label">Research Updates</div>
+                </div>
+            </div>
+        </div>
 
         <div class="content-grid">
-            <div class="content-section">
+            <div class="content-section" style="grid-column: 1 / -1;">
                 <div class="section-header">
                     <span class="section-icon">🔬</span>
-                    <h2 class="section-title">Active Projects</h2>
-                    <span class="section-subtitle">${projects.length} projects</span>
+                    <h2 class="section-title">Current Research Projects</h2>
+                    <span class="section-subtitle">${projects.length} active investigations</span>
                 </div>
                 
-                ${projects.length > 0 ? projects.map(project => `
-                    <div class="content-item">
-                        <h3 style="color: #8b7355; margin-bottom: 10px;">${escapeHtmlContent(project.title)}</h3>
-                        <p style="color: #666; margin-bottom: 15px;"><strong>Central Question:</strong> ${escapeHtmlContent(project.central_question)}</p>
-                        <div class="item-meta">Started ${formatDateContent(project.start_date)} • ${Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24))} days active</div>
-                        <div class="item-actions" style="margin-top: 15px;">
-                            <a href="/forum#project-${project.id}" class="action-link">View in Forum</a>
-                            <a href="/api/research/projects/${project.id}" class="action-link">Project Dashboard</a>
+                ${projects.length > 0 ? projects.map(project => {
+                    const researchDays = Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24));
+                    const progressPercentage = Math.min((researchDays / 30) * 100, 100); // Rough progress estimate
+                    
+                    return `
+                    <div class="project-card">
+                        <div class="project-status">Active Investigation • Day ${researchDays}</div>
+                        <h3 style="color: #2d2d2d; margin-bottom: 0.5rem; font-size: 1.4rem;">${escapeHtmlContent(project.title)}</h3>
+                        <p style="color: #8b7355; font-style: italic; margin-bottom: 1rem; font-size: 1.1rem;">
+                            <strong>Central Question:</strong> ${escapeHtmlContent(project.central_question)}
+                        </p>
+                        
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+                        </div>
+                        <div style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
+                            Research Progress: ${progressPercentage.toFixed(0)}% • Started ${formatDateContent(project.start_date)}
+                        </div>
+                        
+                        <div class="item-actions">
+                            <a href="/stream#project-${project.id}" class="action-link">💬 Join Discussion</a>
+                            <a href="/stream#research" class="action-link">📋 View Updates</a>
+                            <a href="/api/research/projects/${project.id}" class="action-link">📊 Full Dashboard</a>
                         </div>
                     </div>
-                `).join('') : '<div class="empty-state">No active research projects</div>'}
+                    `;
+                }).join('') : '<div class="empty-state">No active research projects</div>'}
             </div>
 
             <div class="content-section">
                 <div class="section-header">
                     <span class="section-icon">📖</span>
                     <h2 class="section-title">Recent Reading Sessions</h2>
+                    <span class="section-subtitle">${recentReadingSessions.length} sessions</span>
                 </div>
                 
-                ${recentReadingSessions.length > 0 ? recentReadingSessions.slice(0, 5).map(session => `
+                ${recentReadingSessions.length > 0 ? recentReadingSessions.slice(0, 8).map(session => `
                     <div class="content-item">
                         <div class="item-title">${escapeHtmlContent(session.text_title)} by ${escapeHtmlContent(session.text_author)}</div>
-                        <div class="item-meta">${escapeHtmlContent(session.phase)} • ${formatDateContent(session.session_date)}</div>
-                        ${session.insights ? `<div class="item-preview">${escapeHtmlContent(session.insights.substring(0, 150))}...</div>` : ''}
+                        <div class="item-meta">
+                            ${formatDateContent(session.session_date)}
+                            <span class="reading-phase">${escapeHtmlContent(session.phase || 'reading')}</span>
+                        </div>
+                        ${session.insights ? `<div class="item-preview">${escapeHtmlContent(session.insights.substring(0, 120))}...</div>` : ''}
                     </div>
                 `).join('') : '<div class="empty-state">No recent reading sessions</div>'}
+                
+                <div class="item-actions" style="margin-top: 1.5rem; text-align: center;">
+                    <a href="/library" class="action-link">📚 Browse Text Library</a>
+                    <a href="/" class="action-link">📝 Share New Text</a>
+                </div>
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">📝</span>
+                    <h2 class="section-title">Research Publications</h2>
+                    <span class="section-subtitle">${recentPublications.length} recent</span>
+                </div>
+                
+                ${recentPublications.length > 0 ? recentPublications.slice(0, 6).map(pub => `
+                    <div class="content-item">
+                        <div class="item-title">${escapeHtmlContent(pub.title)}</div>
+                        <div class="item-meta">
+                            ${formatDateContent(pub.published_at)} • ${escapeHtmlContent(pub.type)}
+                            ${pub.readiness_score ? ` • ${(pub.readiness_score * 100).toFixed(0)}% readiness` : ''}
+                        </div>
+                        <div class="item-actions">
+                            <a href="/api/publications/${pub.id}" class="action-link">Read Full</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No research publications yet</div>'}
+                
+                <div class="item-actions" style="margin-top: 1.5rem; text-align: center;">
+                    <a href="https://archivefeverai.substack.com" target="_blank" class="action-link">📰 View All Publications</a>
+                </div>
             </div>
         </div>
     </div>
@@ -1716,21 +1885,28 @@ async function generateResearchPageHTML() {
 }
 
 async function generateConversationsPageHTML() {
-  let dialogues = [];
-  let forumPosts = [];
+  let conversations = [];
   
   try {
     if (global.ariadne?.memory) {
-      dialogues = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT id, question, participant_name, response, created_at, quality_score
-        FROM dialogues 
-        ORDER BY created_at DESC 
+      // Get dialogues that have forum posts (actual conversations)
+      conversations = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT 
+          d.id as dialogue_id,
+          d.question, 
+          d.participant_name, 
+          d.response, 
+          d.created_at,
+          d.quality_score,
+          d.forum_post_id,
+          fp.title as forum_title,
+          fp.response_count
+        FROM dialogues d
+        LEFT JOIN intellectual_posts fp ON d.forum_post_id = fp.id
+        WHERE d.forum_post_id IS NOT NULL
+        ORDER BY d.created_at DESC 
         LIMIT 20
       `, [], 'all') || [];
-    }
-    
-    if (global.ariadne?.forum) {
-      forumPosts = await global.ariadne.forum.getForumPosts(10) || [];
     }
   } catch (error) {
     console.error('Failed to load conversations data:', error);
@@ -1744,58 +1920,229 @@ async function generateConversationsPageHTML() {
     <title>Conversations - Archive Fever AI</title>
     <style>
         ${getSharedStyles()}
+        
+        .conversation-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .conversation-item:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .conversation-participant {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #8b7355;
+        }
+        
+        .conversation-meta {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .conversation-status {
+            background: #f0f8ff;
+            color: #8b7355;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .conversation-preview {
+            margin: 15px 0;
+        }
+        
+        .question-preview {
+            background: #f8f9fa;
+            padding: 15px;
+            border-left: 4px solid #8b7355;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 15px;
+        }
+        
+        .question-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .question-text {
+            color: #2d2d2d;
+            line-height: 1.5;
+        }
+        
+        .response-preview {
+            background: #f0f8ff;
+            padding: 15px;
+            border-left: 4px solid #d4af37;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .response-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .response-text {
+            color: #2d2d2d;
+            line-height: 1.5;
+        }
+        
+        .conversation-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #f0f0f0;
+            flex-wrap: wrap;
+        }
+        
+        .conversation-action {
+            color: #8b7355;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 8px 16px;
+            border: 1px solid #8b7355;
+            border-radius: 20px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .conversation-action:hover {
+            background: #8b7355;
+            color: white;
+        }
+        
+        .conversation-action.primary {
+            background: #8b7355;
+            color: white;
+        }
+        
+        .conversation-action.primary:hover {
+            background: #6d5a42;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            color: #8b7355;
+            margin-bottom: 15px;
+        }
+        
+        .start-conversation-btn {
+            background: linear-gradient(135deg, #8b7355, #d4af37);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .start-conversation-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 115, 85, 0.3);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1 class="title">Conversations</h1>
-            <div class="subtitle">Dialogues, discussions, and intellectual exchange</div>
+            <div class="subtitle">Ongoing dialogues and philosophical discussions with Ariadne</div>
+            <div class="header-description">Engage in meaningful dialogue and continue existing conversations</div>
         </div>
 
         ${getNavigation('conversations')}
 
-        <div class="content-grid">
-            <div class="content-section">
-                <div class="section-header">
-                    <span class="section-icon">💬</span>
-                    <h2 class="section-title">Recent Dialogues</h2>
-                    <span class="section-subtitle">${dialogues.length} exchanges</span>
-                </div>
-                
-                ${dialogues.length > 0 ? dialogues.map(dialogue => `
-                    <div class="content-item">
-                        <div class="item-title">Dialogue with ${escapeHtmlContent(dialogue.participant_name)}</div>
-                        <div class="item-meta">${formatDateContent(dialogue.created_at)} • Quality: ${(dialogue.quality_score * 100).toFixed(0)}%</div>
-                        <div class="item-preview" style="margin: 10px 0;"><strong>Q:</strong> ${escapeHtmlContent(dialogue.question.substring(0, 200))}${dialogue.question.length > 200 ? '...' : ''}</div>
-                        <div class="item-preview"><strong>A:</strong> ${escapeHtmlContent(dialogue.response.substring(0, 200))}${dialogue.response.length > 200 ? '...' : ''}</div>
-                        <div class="item-actions" style="margin-top: 10px;">
-                            <a href="/api/dialogues/${dialogue.id}" class="action-link">Full Exchange</a>
+        <div class="content-grid" style="max-width: 800px; margin: 0 auto;">
+            ${conversations.length > 0 ? conversations.map(conv => `
+                <div class="conversation-item">
+                    <div class="conversation-header">
+                        <div>
+                            <div class="conversation-participant">💬 Conversation with ${escapeHtmlContent(conv.participant_name)}</div>
+                            <div class="conversation-meta">
+                                ${formatDateContent(conv.created_at)} • Quality: ${(conv.quality_score * 100).toFixed(0)}%
+                            </div>
+                        </div>
+                        <div class="conversation-status">
+                            ${conv.response_count || 0} ${(conv.response_count || 0) === 1 ? 'reply' : 'replies'}
                         </div>
                     </div>
-                `).join('') : '<div class="empty-state">No recent dialogues</div>'}
-            </div>
-
-            <div class="content-section">
-                <div class="section-header">
-                    <span class="section-icon">🏛️</span>
-                    <h2 class="section-title">Forum Discussions</h2>
-                </div>
-                
-                ${forumPosts.length > 0 ? forumPosts.slice(0, 5).map(post => `
-                    <div class="content-item">
-                        <div class="item-title">${escapeHtmlContent(post.title)}</div>
-                        <div class="item-meta">by ${escapeHtmlContent(post.posted_by)} • ${formatDateContent(post.created_at)}</div>
-                        <div class="item-actions">
-                            <a href="/forum/post/${post.id}" class="action-link">View Discussion</a>
+                    
+                    <div class="conversation-preview">
+                        <div class="question-preview">
+                            <div class="question-label">Question</div>
+                            <div class="question-text">${escapeHtmlContent(conv.question.substring(0, 200))}${conv.question.length > 200 ? '...' : ''}</div>
+                        </div>
+                        
+                        <div class="response-preview">
+                            <div class="response-label">Ariadne's Response</div>
+                            <div class="response-text">${escapeHtmlContent(conv.response.substring(0, 300))}${conv.response.length > 300 ? '...' : ''}</div>
                         </div>
                     </div>
-                `).join('') : '<div class="empty-state">No forum discussions</div>'}
-                
-                <div class="item-actions" style="margin-top: 20px;">
-                    <a href="/forum" class="action-link">View All Discussions</a>
-                    <a href="/" class="action-link">Start New Dialogue</a>
+                    
+                    <div class="conversation-actions">
+                        <a href="/forum/post/${conv.forum_post_id}" class="conversation-action primary">
+                            💬 Continue Conversation
+                        </a>
+                        <a href="/api/dialogues/${conv.dialogue_id}" class="conversation-action">
+                            📖 View Full Exchange
+                        </a>
+                        ${conv.response_count > 0 ? `
+                            <a href="/forum/post/${conv.forum_post_id}#responses" class="conversation-action">
+                                👥 ${conv.response_count} ${(conv.response_count || 0) === 1 ? 'Reply' : 'Replies'}
+                            </a>
+                        ` : ''}
+                    </div>
                 </div>
+            `).join('') : `
+                <div class="empty-state">
+                    <h3>No conversations yet</h3>
+                    <p>Start a philosophical dialogue with Ariadne to begin meaningful conversations.</p>
+                    <p>When your dialogue is substantial enough, it will automatically become a forum discussion where others can join.</p>
+                    <a href="/" class="start-conversation-btn">🌟 Start New Conversation</a>
+                </div>
+            `}
+            
+            <div style="text-align: center; margin-top: 40px; padding: 20px;">
+                <div style="color: #666; margin-bottom: 15px;">
+                    <em>Conversations shown here are dialogues that have grown into forum discussions</em>
+                </div>
+                <a href="/" class="start-conversation-btn">✨ Start New Dialogue</a>
+                <a href="/forum" class="conversation-action" style="margin-left: 15px;">🏛️ Browse All Forum Posts</a>
             </div>
         </div>
     </div>
@@ -1915,13 +2262,20 @@ async function generateUnifiedArchiveHTML() {
 // Shared styles and navigation for consistent design
 function getSharedStyles() {
   return `
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+Pro:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    * { 
+        margin: 0; 
+        padding: 0; 
+        box-sizing: border-box; 
+    }
     
     body {
-        font-family: Georgia, serif;
-        background: #fefefe;
+        font-family: 'Source Sans Pro', sans-serif;
+        background: linear-gradient(135deg, #fefefe 0%, #f8f8f8 100%);
         color: #2d2d2d;
         line-height: 1.6;
+        overflow-x: hidden;
     }
     
     .container {
@@ -1933,45 +2287,38 @@ function getSharedStyles() {
     .header {
         text-align: center;
         margin-bottom: 50px;
-        padding-bottom: 30px;
-        border-bottom: 1px solid #e0e0e0;
+        padding: 40px 20px;
+        background: linear-gradient(135deg, rgba(139, 115, 85, 0.03) 0%, rgba(139, 115, 85, 0.08) 100%);
+        border-radius: 12px;
+        border: 1px solid rgba(139, 115, 85, 0.1);
     }
     
     .title {
-        font-size: 2.5rem;
-        color: #8b7355;
-        margin-bottom: 10px;
-        font-weight: normal;
+        font-family: 'Playfair Display', serif;
+        font-size: clamp(2rem, 5vw, 3rem);
+        color: #2d2d2d;
+        margin-bottom: 15px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
     }
     
     .subtitle {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
+        color: #8b7355;
+        font-weight: 300;
+        margin-bottom: 10px;
+    }
+    
+    .header-description {
         color: #666;
         font-style: italic;
+        font-size: 1rem;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.6;
     }
     
-    .nav {
-        display: flex;
-        justify-content: center;
-        gap: 30px;
-        margin-bottom: 40px;
-        padding: 20px;
-        background: #f8f8f8;
-        border-radius: 5px;
-        flex-wrap: wrap;
-    }
-    
-    .nav a {
-        color: #8b7355;
-        text-decoration: none;
-        font-weight: 500;
-        transition: all 0.3s ease;
-    }
-    
-    .nav a:hover, .nav a.active {
-        color: #2d2d2d;
-        border-bottom: 2px solid #8b7355;
-    }
+
     
     .content-grid {
         display: grid;
@@ -2050,20 +2397,24 @@ function getSharedStyles() {
         flex-wrap: wrap;
     }
     
-    .action-link {
-        font-size: 0.8rem;
-        color: #8b7355;
-        text-decoration: none;
-        padding: 4px 8px;
-        border: 1px solid #8b7355;
-        border-radius: 3px;
-        transition: all 0.3s ease;
-    }
-    
-    .action-link:hover {
-        background: #8b7355;
-        color: white;
-    }
+            .action-link {
+            font-size: 0.85rem;
+            color: #8b7355;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #8b7355;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: inline-block;
+        }
+        
+        .action-link:hover {
+            background: #8b7355;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 115, 85, 0.2);
+        }
     
     .empty-state {
         text-align: center;
@@ -2087,19 +2438,326 @@ function getSharedStyles() {
 
 function getNavigation(activePage) {
   const pages = {
-    'dashboard': 'Dashboard',
-    'research': 'Research', 
-    'conversations': 'Conversations',
-    'archive': 'Archive'
+    'stream': 'Stream',
+    'library': 'Library', 
+    'projects': 'Projects'
   };
   
-  return `<nav class="nav">
-    <a href="/">Home</a>
-    ${Object.entries(pages).map(([key, label]) => 
-      `<a href="/${key}" ${activePage === key ? 'class="active"' : ''}>${label}</a>`
-    ).join('')}
-    <a href="https://archivefeverai.substack.com" target="_blank">Substack</a>
-  </nav>`;
+  return `
+    <nav class="nav-floating">
+        <a href="/" ${activePage === 'home' ? 'class="active"' : ''}>Home</a>
+        ${Object.entries(pages).map(([key, label]) => 
+          `<a href="/${key}" ${activePage === key ? 'class="active"' : ''}>${label}</a>`
+        ).join('')}
+    </nav>
+    
+    <style>
+        .nav-floating {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 50px;
+            padding: 12px 20px;
+            display: flex;
+            gap: 2rem;
+            z-index: 1000;
+            border: 1px solid rgba(139, 115, 85, 0.1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .nav-floating a {
+            text-decoration: none;
+            color: #666;
+            font-weight: 500;
+            font-size: 0.9rem;
+            padding: 8px 16px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-floating a:hover, .nav-floating a.active {
+            background: #8b7355;
+            color: white;
+        }
+        
+        /* Adjust body padding to account for fixed nav */
+        body {
+            padding-top: 80px;
+        }
+        
+        @media (max-width: 768px) {
+            .nav-floating {
+                position: relative;
+                top: auto;
+                left: auto;
+                transform: none;
+                margin: 2rem auto 2rem auto;
+                width: fit-content;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            body {
+                padding-top: 20px;
+            }
+        }
+    </style>
+  `;
+}
+
+async function generateLibraryHTML() {
+  let texts = [];
+  let readingSessions = [];
+  let thoughts = [];
+  
+  try {
+    if (global.ariadne?.memory) {
+      // Get all texts (removed context column that doesn't exist)
+      texts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, title, author, content, uploaded_at, uploaded_by,
+               (SELECT COUNT(*) FROM reading_sessions rs WHERE rs.text_id = texts.id) as reading_count,
+               (SELECT COUNT(*) FROM thoughts t WHERE t.content LIKE '%' || texts.title || '%') as related_thoughts
+        FROM texts 
+        ORDER BY uploaded_at DESC
+      `, [], 'all') || [];
+      
+      // Get recent reading sessions for engagement context
+      readingSessions = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT rs.*, t.title as text_title, t.author as text_author
+        FROM reading_sessions rs
+        LEFT JOIN texts t ON rs.text_id = t.id
+        ORDER BY rs.session_date DESC 
+        LIMIT 20
+      `, [], 'all') || [];
+      
+      // Get thoughts that reference texts
+      thoughts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, content, timestamp
+        FROM thoughts 
+        WHERE content LIKE '%text%' OR content LIKE '%reading%' OR content LIKE '%book%'
+        ORDER BY timestamp DESC 
+        LIMIT 15
+      `, [], 'all') || [];
+    }
+  } catch (error) {
+    console.error('Failed to load library data:', error);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library - Archive Fever AI</title>
+    <style>
+        ${getSharedStyles()}
+        
+        .engagement-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-left: 8px;
+            background: #e8f5e8;
+            color: #2d4a2d;
+        }
+        
+        .text-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .text-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            color: #2d2d2d;
+            margin-bottom: 8px;
+        }
+        
+        .text-author {
+            color: #8b7355;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+        
+        .engagement-summary {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 3px solid #8b7355;
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .filter-btn {
+            background: white;
+            border: 1px solid #8b7355;
+            color: #8b7355;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .filter-btn:hover, .filter-btn.active {
+            background: #8b7355;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Library</h1>
+            <div class="subtitle">Archive Fever AI • Text Collection & Deep Engagement</div>
+            <div class="header-description">Complete archive of texts with Ariadne's full intellectual engagement history</div>
+        </div>
+
+        ${getNavigation('library')}
+
+        <div class="filter-buttons">
+            <button class="filter-btn active" data-filter="all">All Texts (${texts.length})</button>
+            <button class="filter-btn" data-filter="philosophy">Philosophy</button>
+            <button class="filter-btn" data-filter="consciousness">Consciousness</button>
+            <button class="filter-btn" data-filter="technology">Technology</button>
+            <button class="filter-btn" data-filter="recent">Recently Added</button>
+        </div>
+
+        <div class="content-grid">
+            <div class="content-section" style="grid-column: 1 / -1;">
+                <div class="section-header">
+                    <span class="section-icon">📚</span>
+                    <h2 class="section-title">Text Collection</h2>
+                    <span class="section-subtitle">${texts.length} texts • ${readingSessions.length} reading sessions</span>
+                </div>
+                
+                ${texts.length > 0 ? texts.map(text => `
+                    <div class="text-card" data-category="general">
+                        <div class="text-title">${escapeHtmlContent(text.title)}</div>
+                        <div class="text-author">by ${escapeHtmlContent(text.author)}</div>
+                        
+                        <div class="item-meta">
+                            Added ${formatDateContent(text.uploaded_at)} 
+                            ${text.uploaded_by ? `by ${escapeHtmlContent(text.uploaded_by)}` : ''}
+                            <span class="engagement-badge">${text.reading_count || 0} readings</span>
+                            <span class="engagement-badge">${text.related_thoughts || 0} thoughts</span>
+                        </div>
+                        
+                        <div class="engagement-summary">
+                            <strong>Ariadne's Engagement:</strong>
+                            <div style="margin-top: 8px; color: #555;">
+                                ${text.reading_count > 0 ? 
+                                  `Read in ${text.reading_count} session${text.reading_count > 1 ? 's' : ''}. ` : 
+                                  'Not yet read in depth. '}
+                                ${text.related_thoughts > 0 ? 
+                                  `Generated ${text.related_thoughts} related thought${text.related_thoughts > 1 ? 's' : ''}. ` : 
+                                  'No related thoughts yet. '}
+                                <em>Full engagement history available.</em>
+                            </div>
+                        </div>
+                        
+                        <div class="item-actions">
+                            <a href="/api/texts/${text.id}/full" class="action-link">📖 Read Full Text</a>
+                            <a href="/api/texts/${text.id}/engagement" class="action-link">🧠 View Ariadne's Engagement</a>
+                            <a href="/stream#text-${text.id}" class="action-link">💬 Discuss Text</a>
+                            ${text.reading_count > 0 ? 
+                              `<a href="/api/texts/${text.id}/readings" class="action-link">📋 Reading Sessions</a>` : 
+                              ''}
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No texts in library yet</div>'}
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">📖</span>
+                    <h2 class="section-title">Recent Reading Activity</h2>
+                </div>
+                
+                ${readingSessions.length > 0 ? readingSessions.slice(0, 8).map(session => `
+                    <div class="content-item">
+                        <div class="item-title">${escapeHtmlContent(session.text_title || 'Unknown Text')}</div>
+                        <div class="item-meta">
+                            ${formatDateContent(session.session_date)} • ${escapeHtmlContent(session.phase || 'reading')}
+                        </div>
+                        ${session.insights ? `<div class="item-preview">${escapeHtmlContent(session.insights.substring(0, 120))}...</div>` : ''}
+                    </div>
+                `).join('') : '<div class="empty-state">No recent reading sessions</div>'}
+                
+                <div class="item-actions" style="margin-top: 15px; text-align: center;">
+                    <a href="/" class="action-link">📝 Add New Text</a>
+                    <a href="/stream#reading" class="action-link">📱 View Reading Stream</a>
+                </div>
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">💭</span>
+                    <h2 class="section-title">Text-Related Thoughts</h2>
+                </div>
+                
+                ${thoughts.length > 0 ? thoughts.slice(0, 6).map(thought => `
+                    <div class="content-item">
+                        <div class="item-preview">${escapeHtmlContent(thought.content.substring(0, 150))}${thought.content.length > 150 ? '...' : ''}</div>
+                        <div class="item-meta">${formatDateContent(thought.timestamp)}</div>
+                    </div>
+                `).join('') : '<div class="empty-state">No text-related thoughts yet</div>'}
+                
+                <div class="item-actions" style="margin-top: 15px; text-align: center;">
+                    <a href="/thoughts" class="action-link">📝 All Thoughts</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Text filtering functionality
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Update active button
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const filter = btn.dataset.filter;
+                const textCards = document.querySelectorAll('.text-card');
+                
+                textCards.forEach(card => {
+                    if (filter === 'all') {
+                        card.style.display = 'block';
+                    } else if (filter === 'recent') {
+                        // Show texts added in last 30 days
+                        card.style.display = 'block'; // Simplified - would need date logic
+                    } else {
+                        // Filter by category/context - simplified since context column was removed
+                        const textContent = card.textContent.toLowerCase();
+                        if (textContent.includes(filter.toLowerCase())) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>`;
 }
 
 module.exports = router;
