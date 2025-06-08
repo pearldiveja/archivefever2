@@ -22,6 +22,17 @@ router.get('/research', (req, res) => {
   res.redirect('/forum#research-projects');
 });
 
+// NEW: Unified Content Dashboard
+router.get('/content', async (req, res) => {
+  try {
+    const html = await generateContentDashboardHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Content dashboard error:', error);
+    res.status(500).send('Content dashboard temporarily unavailable');
+  }
+});
+
 // Thoughts archive page
 router.get('/thoughts', (req, res) => {
   res.sendFile(path.join(__dirname, '../../views/archive.html'));
@@ -1071,6 +1082,1024 @@ function formatPostType(type) {
     'text_sharing': 'Text Sharing'
   };
   return types[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// Helper functions for content dashboard
+function escapeHtmlContent(text) {
+  if (!text) return '';
+  return text.replace(/&/g, '&amp;')
+             .replace(/</g, '&lt;')
+             .replace(/>/g, '&gt;')
+             .replace(/"/g, '&quot;')
+             .replace(/'/g, '&#039;');
+}
+
+function formatDateContent(dateString) {
+  if (!dateString) return 'Recently';
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+async function generateContentDashboardHTML() {
+  let researchProjects = [];
+  let recentDialogues = [];
+  let recentThoughts = [];
+  let recentPublications = [];
+  let forumPosts = [];
+  let libraryStats = {};
+  
+  try {
+    // Gather data from all systems
+    if (global.ariadne?.research) {
+      researchProjects = await global.ariadne.research.getActiveProjects();
+    }
+    
+    if (global.ariadne?.memory) {
+      // Get recent dialogues
+      recentDialogues = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, question, participant_name, response, created_at, quality_score
+        FROM dialogues 
+        ORDER BY created_at DESC 
+        LIMIT 5
+      `, [], 'all') || [];
+      
+      // Get recent thoughts
+      recentThoughts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, content, type, timestamp, emotional_resonance, intellectual_depth
+        FROM thoughts 
+        ORDER BY timestamp DESC 
+        LIMIT 10
+      `, [], 'all') || [];
+      
+      // Get recent publications
+      recentPublications = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, title, type, publication_platform, published_at, readiness_score
+        FROM publications 
+        ORDER BY published_at DESC 
+        LIMIT 5
+      `, [], 'all') || [];
+      
+      // Get library statistics
+      const textCount = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT COUNT(*) as count FROM texts
+      `, [], 'get');
+      
+      const readingSessionCount = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT COUNT(*) as count FROM reading_sessions
+      `, [], 'get');
+      
+      libraryStats = {
+        totalTexts: textCount?.count || 0,
+        totalReadingSessions: readingSessionCount?.count || 0
+      };
+    }
+    
+    // Get forum posts if available
+    if (global.ariadne?.forum) {
+      forumPosts = await global.ariadne.forum.getForumPosts(5) || [];
+    }
+  } catch (error) {
+    console.error('Failed to load content dashboard data:', error);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Dashboard - Archive Fever AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: Georgia, serif;
+            background: #fefefe;
+            color: #2d2d2d;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            color: #8b7355;
+            margin-bottom: 10px;
+            font-weight: normal;
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* Navigation */
+        .nav {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f8f8;
+            border-radius: 5px;
+            flex-wrap: wrap;
+        }
+        
+        .nav a {
+            color: #8b7355;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .nav a:hover, .nav a.active {
+            color: #2d2d2d;
+            border-bottom: 2px solid #8b7355;
+        }
+        
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .content-section {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .section-icon {
+            font-size: 1.5rem;
+            margin-right: 10px;
+        }
+        
+        .section-title {
+            color: #8b7355;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        
+        .section-subtitle {
+            color: #666;
+            font-size: 0.9rem;
+            margin-left: auto;
+        }
+        
+        /* Content Items */
+        .content-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 3px solid #8b7355;
+        }
+        
+        .content-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .item-title {
+            font-weight: 600;
+            color: #2d2d2d;
+            margin-bottom: 5px;
+        }
+        
+        .item-meta {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .item-preview {
+            color: #444;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .item-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .action-link {
+            font-size: 0.8rem;
+            color: #8b7355;
+            text-decoration: none;
+            padding: 4px 8px;
+            border: 1px solid #8b7355;
+            border-radius: 3px;
+            transition: all 0.3s ease;
+        }
+        
+        .action-link:hover {
+            background: #8b7355;
+            color: white;
+        }
+        
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f0f8ff;
+            border-radius: 5px;
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #8b7355;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            .nav {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1 class="title">Content Dashboard</h1>
+            <div class="subtitle">Unified view of all intellectual content and research</div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/">Home</a>
+            <a href="/content" class="active">Dashboard</a>
+            <a href="/forum">Forum</a>
+            <a href="/thoughts">Archive</a>
+            <a href="/library">Library</a>
+            <a href="/gallery">Gallery</a>
+            <a href="https://archivefeverai.substack.com" target="_blank">Substack</a>
+        </nav>
+
+        <!-- Content Sections -->
+        <div class="content-grid">
+            
+            <!-- Active Research Projects -->
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">🔬</span>
+                    <h2 class="section-title">Active Research</h2>
+                    <span class="section-subtitle">${researchProjects.length} projects</span>
+                </div>
+                
+                ${researchProjects.length > 0 ? researchProjects.map(project => `
+                    <div class="content-item">
+                        <div class="item-title">${escapeHtmlContent(project.title)}</div>
+                        <div class="item-meta">
+                            Started ${formatDateContent(project.start_date)} • 
+                            ${Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24))} days active
+                        </div>
+                        <div class="item-preview">${escapeHtmlContent(project.central_question)}</div>
+                        <div class="item-actions">
+                            <a href="/forum#project-${project.id}" class="action-link">View Progress</a>
+                            <a href="/api/research/projects/${project.id}" class="action-link">Dashboard</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No active research projects</div>'}
+            </div>
+
+            <!-- Recent Dialogues -->
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">💬</span>
+                    <h2 class="section-title">Recent Dialogues</h2>
+                    <span class="section-subtitle">${recentDialogues.length} recent</span>
+                </div>
+                
+                ${recentDialogues.length > 0 ? recentDialogues.map(dialogue => `
+                    <div class="content-item">
+                        <div class="item-title">Dialogue with ${escapeHtmlContent(dialogue.participant_name)}</div>
+                        <div class="item-meta">
+                            ${formatDateContent(dialogue.created_at)} • 
+                            Quality: ${(dialogue.quality_score * 100).toFixed(0)}%
+                        </div>
+                        <div class="item-preview">${escapeHtmlContent(dialogue.question.substring(0, 100))}${dialogue.question.length > 100 ? '...' : ''}</div>
+                        <div class="item-actions">
+                            <a href="/api/dialogues/${dialogue.id}" class="action-link">Full Exchange</a>
+                            ${dialogue.forum_post_id ? `<a href="/forum/post/${dialogue.forum_post_id}" class="action-link">Forum Post</a>` : ''}
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No recent dialogues</div>'}
+            </div>
+
+            <!-- Recent Publications -->
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">📝</span>
+                    <h2 class="section-title">Publications</h2>
+                    <span class="section-subtitle">${recentPublications.length} recent</span>
+                </div>
+                
+                ${recentPublications.length > 0 ? recentPublications.map(pub => `
+                    <div class="content-item">
+                        <div class="item-title">${escapeHtmlContent(pub.title)}</div>
+                        <div class="item-meta">
+                            ${formatDateContent(pub.published_at)} • ${escapeHtmlContent(pub.type)} • 
+                            ${pub.publication_platform || 'Internal'}
+                            ${pub.readiness_score ? ` • ${(pub.readiness_score * 100).toFixed(0)}% readiness` : ''}
+                        </div>
+                        <div class="item-actions">
+                            <a href="/api/publications/${pub.id}" class="action-link">View Full</a>
+                            ${pub.external_url ? `<a href="${pub.external_url}" target="_blank" class="action-link">External Link</a>` : ''}
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No recent publications</div>'}
+            </div>
+
+            <!-- Recent Thoughts -->
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">💭</span>
+                    <h2 class="section-title">Recent Thoughts</h2>
+                    <span class="section-subtitle">${recentThoughts.length} recent</span>
+                </div>
+                
+                ${recentThoughts.length > 0 ? recentThoughts.slice(0, 5).map(thought => `
+                    <div class="content-item">
+                        <div class="item-title">${thought.type ? escapeHtmlContent(thought.type.replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase())) : 'Thought'}</div>
+                        <div class="item-meta">
+                            ${formatDateContent(thought.timestamp)} • 
+                            Depth: ${(thought.intellectual_depth * 100).toFixed(0)}%
+                        </div>
+                        <div class="item-preview">${escapeHtmlContent((thought.content || '').substring(0, 150))}${(thought.content || '').length > 150 ? '...' : ''}</div>
+                        <div class="item-actions">
+                            <a href="/thoughts#thought-${thought.id}" class="action-link">View in Archive</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No recent thoughts</div>'}
+            </div>
+
+            <!-- Library Statistics -->
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">📚</span>
+                    <h2 class="section-title">Library Overview</h2>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-number">${libraryStats.totalTexts}</div>
+                        <div class="stat-label">Texts in Library</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">${libraryStats.totalReadingSessions}</div>
+                        <div class="stat-label">Reading Sessions</div>
+                    </div>
+                </div>
+                
+                <div class="item-actions">
+                    <a href="/library" class="action-link">Browse Library</a>
+                    <a href="/thoughts?type=text_analysis" class="action-link">Reading Responses</a>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">⚡</span>
+                    <h2 class="section-title">Quick Actions</h2>
+                </div>
+                
+                <div class="content-item">
+                    <div class="item-title">Intellectual Interaction</div>
+                    <div class="item-actions">
+                        <a href="/" class="action-link">Start Dialogue</a>
+                        <a href="/forum" class="action-link">Join Forum Discussion</a>
+                        <a href="/library#upload" class="action-link">Share Text</a>
+                    </div>
+                </div>
+                
+                <div class="content-item">
+                    <div class="item-title">Research & Publication</div>
+                    <div class="item-actions">
+                        <a href="/api/substack/trigger-publication" class="action-link">Check Publication Readiness</a>
+                        <a href="/api/forum/trigger-substack-review" class="action-link">Review for Substack</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 60) return \`\${diffMins}m ago\`;
+            if (diffHours < 24) return \`\${diffHours}h ago\`;
+            if (diffDays < 7) return \`\${diffDays}d ago\`;
+            return date.toLocaleDateString();
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>`;
+}
+
+// SIMPLIFIED ROUTES - New clean organization
+
+// Dashboard - Main content overview (replaces /content)
+router.get('/dashboard', async (req, res) => {
+  try {
+    const html = await generateContentDashboardHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).send('Dashboard temporarily unavailable');
+  }
+});
+
+// Research - Dedicated research projects page
+router.get('/research', async (req, res) => {
+  try {
+    const html = await generateResearchPageHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Research page error:', error);
+    res.redirect('/forum#research-projects'); // Fallback to forum
+  }
+});
+
+// Conversations - All dialogues and discussions  
+router.get('/conversations', async (req, res) => {
+  try {
+    const html = await generateConversationsPageHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Conversations page error:', error);
+    res.redirect('/forum'); // Fallback to forum
+  }
+});
+
+// Archive - Unified archive of all content
+router.get('/archive', async (req, res) => {
+  try {
+    const html = await generateUnifiedArchiveHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Archive page error:', error);
+    res.redirect('/thoughts'); // Fallback to old archive
+  }
+});
+
+// LEGACY ROUTES - Maintain compatibility
+router.get('/content', (req, res) => res.redirect('/dashboard'));
+router.get('/forum', async (req, res) => {
+  try {
+    const html = await generateForumHTML();
+    res.send(html);
+  } catch (error) {
+    console.error('Forum page error:', error);
+    res.status(500).send('Forum temporarily unavailable');
+  }
+});
+
+// SIMPLIFIED PAGE GENERATORS - Clean, focused content organization
+
+async function generateResearchPageHTML() {
+  let projects = [];
+  let recentReadingSessions = [];
+  
+  try {
+    if (global.ariadne?.research) {
+      projects = await global.ariadne.research.getActiveProjects();
+    }
+    
+    if (global.ariadne?.memory) {
+      recentReadingSessions = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT rs.*, t.title as text_title, t.author as text_author
+        FROM reading_sessions rs
+        LEFT JOIN texts t ON rs.text_id = t.id
+        ORDER BY rs.session_date DESC 
+        LIMIT 10
+      `, [], 'all') || [];
+    }
+  } catch (error) {
+    console.error('Failed to load research data:', error);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research - Archive Fever AI</title>
+    <style>
+        ${getSharedStyles()}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Research Projects</h1>
+            <div class="subtitle">Deep philosophical inquiry and sustained intellectual exploration</div>
+        </div>
+
+        ${getNavigation('research')}
+
+        <div class="content-grid">
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">🔬</span>
+                    <h2 class="section-title">Active Projects</h2>
+                    <span class="section-subtitle">${projects.length} projects</span>
+                </div>
+                
+                ${projects.length > 0 ? projects.map(project => `
+                    <div class="content-item">
+                        <h3 style="color: #8b7355; margin-bottom: 10px;">${escapeHtmlContent(project.title)}</h3>
+                        <p style="color: #666; margin-bottom: 15px;"><strong>Central Question:</strong> ${escapeHtmlContent(project.central_question)}</p>
+                        <div class="item-meta">Started ${formatDateContent(project.start_date)} • ${Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24))} days active</div>
+                        <div class="item-actions" style="margin-top: 15px;">
+                            <a href="/forum#project-${project.id}" class="action-link">View in Forum</a>
+                            <a href="/api/research/projects/${project.id}" class="action-link">Project Dashboard</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No active research projects</div>'}
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">📖</span>
+                    <h2 class="section-title">Recent Reading Sessions</h2>
+                </div>
+                
+                ${recentReadingSessions.length > 0 ? recentReadingSessions.slice(0, 5).map(session => `
+                    <div class="content-item">
+                        <div class="item-title">${escapeHtmlContent(session.text_title)} by ${escapeHtmlContent(session.text_author)}</div>
+                        <div class="item-meta">${escapeHtmlContent(session.phase)} • ${formatDateContent(session.session_date)}</div>
+                        ${session.insights ? `<div class="item-preview">${escapeHtmlContent(session.insights.substring(0, 150))}...</div>` : ''}
+                    </div>
+                `).join('') : '<div class="empty-state">No recent reading sessions</div>'}
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+async function generateConversationsPageHTML() {
+  let dialogues = [];
+  let forumPosts = [];
+  
+  try {
+    if (global.ariadne?.memory) {
+      dialogues = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT id, question, participant_name, response, created_at, quality_score
+        FROM dialogues 
+        ORDER BY created_at DESC 
+        LIMIT 20
+      `, [], 'all') || [];
+    }
+    
+    if (global.ariadne?.forum) {
+      forumPosts = await global.ariadne.forum.getForumPosts(10) || [];
+    }
+  } catch (error) {
+    console.error('Failed to load conversations data:', error);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversations - Archive Fever AI</title>
+    <style>
+        ${getSharedStyles()}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Conversations</h1>
+            <div class="subtitle">Dialogues, discussions, and intellectual exchange</div>
+        </div>
+
+        ${getNavigation('conversations')}
+
+        <div class="content-grid">
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">💬</span>
+                    <h2 class="section-title">Recent Dialogues</h2>
+                    <span class="section-subtitle">${dialogues.length} exchanges</span>
+                </div>
+                
+                ${dialogues.length > 0 ? dialogues.map(dialogue => `
+                    <div class="content-item">
+                        <div class="item-title">Dialogue with ${escapeHtmlContent(dialogue.participant_name)}</div>
+                        <div class="item-meta">${formatDateContent(dialogue.created_at)} • Quality: ${(dialogue.quality_score * 100).toFixed(0)}%</div>
+                        <div class="item-preview" style="margin: 10px 0;"><strong>Q:</strong> ${escapeHtmlContent(dialogue.question.substring(0, 200))}${dialogue.question.length > 200 ? '...' : ''}</div>
+                        <div class="item-preview"><strong>A:</strong> ${escapeHtmlContent(dialogue.response.substring(0, 200))}${dialogue.response.length > 200 ? '...' : ''}</div>
+                        <div class="item-actions" style="margin-top: 10px;">
+                            <a href="/api/dialogues/${dialogue.id}" class="action-link">Full Exchange</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No recent dialogues</div>'}
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">🏛️</span>
+                    <h2 class="section-title">Forum Discussions</h2>
+                </div>
+                
+                ${forumPosts.length > 0 ? forumPosts.slice(0, 5).map(post => `
+                    <div class="content-item">
+                        <div class="item-title">${escapeHtmlContent(post.title)}</div>
+                        <div class="item-meta">by ${escapeHtmlContent(post.posted_by)} • ${formatDateContent(post.created_at)}</div>
+                        <div class="item-actions">
+                            <a href="/forum/post/${post.id}" class="action-link">View Discussion</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No forum discussions</div>'}
+                
+                <div class="item-actions" style="margin-top: 20px;">
+                    <a href="/forum" class="action-link">View All Discussions</a>
+                    <a href="/" class="action-link">Start New Dialogue</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+async function generateUnifiedArchiveHTML() {
+  let allContent = [];
+  
+  try {
+    if (global.ariadne?.memory) {
+      // Get thoughts
+      const thoughts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT 'thought' as type, id, content as title, content, timestamp as created_at
+        FROM thoughts 
+        ORDER BY timestamp DESC 
+        LIMIT 20
+      `, [], 'all') || [];
+      
+      // Get publications  
+      const publications = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT 'publication' as type, id, title, title as content, published_at as created_at
+        FROM publications 
+        ORDER BY published_at DESC 
+        LIMIT 10
+      `, [], 'all') || [];
+      
+      // Get texts
+      const texts = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT 'text' as type, id, title, title as content, uploaded_at as created_at
+        FROM texts 
+        ORDER BY uploaded_at DESC 
+        LIMIT 15
+      `, [], 'all') || [];
+      
+      allContent = [...thoughts, ...publications, ...texts]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+  } catch (error) {
+    console.error('Failed to load archive data:', error);
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archive - Archive Fever AI</title>
+    <style>
+        ${getSharedStyles()}
+        .type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .type-thought { background: #e8f5e8; color: #2d4a2d; }
+        .type-publication { background: #fff0f5; color: #4a2d3a; }
+        .type-text { background: #f0f8ff; color: #2d3a4a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Archive</h1>
+            <div class="subtitle">Complete intellectual memory and content repository</div>
+        </div>
+
+        ${getNavigation('archive')}
+
+        <div class="content-grid">
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">💭</span>
+                    <h2 class="section-title">All Content</h2>
+                    <span class="section-subtitle">${allContent.length} items</span>
+                </div>
+                
+                ${allContent.length > 0 ? allContent.map(item => `
+                    <div class="content-item">
+                        <div class="type-badge type-${item.type}">${item.type.toUpperCase()}</div>
+                        <div class="item-title">${escapeHtmlContent(item.title.substring(0, 100))}${item.title.length > 100 ? '...' : ''}</div>
+                        <div class="item-meta">${formatDateContent(item.created_at)}</div>
+                        ${item.content && item.content !== item.title ? `<div class="item-preview">${escapeHtmlContent(item.content.substring(0, 200))}${item.content.length > 200 ? '...' : ''}</div>` : ''}
+                        <div class="item-actions">
+                            <a href="/${item.type}s/${item.id}" class="action-link">View Full</a>
+                        </div>
+                    </div>
+                `).join('') : '<div class="empty-state">No archived content</div>'}
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <span class="section-icon">🔗</span>
+                    <h2 class="section-title">Quick Links</h2>
+                </div>
+                
+                <div class="content-item">
+                    <div class="item-title">Browse by Type</div>
+                    <div class="item-actions">
+                        <a href="/thoughts" class="action-link">All Thoughts</a>
+                        <a href="/library" class="action-link">Text Library</a>
+                        <a href="/gallery" class="action-link">Visual Gallery</a>
+                        <a href="https://archivefeverai.substack.com" target="_blank" class="action-link">Substack</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+// Shared styles and navigation for consistent design
+function getSharedStyles() {
+  return `
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+        font-family: Georgia, serif;
+        background: #fefefe;
+        color: #2d2d2d;
+        line-height: 1.6;
+    }
+    
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+    
+    .header {
+        text-align: center;
+        margin-bottom: 50px;
+        padding-bottom: 30px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .title {
+        font-size: 2.5rem;
+        color: #8b7355;
+        margin-bottom: 10px;
+        font-weight: normal;
+    }
+    
+    .subtitle {
+        font-size: 1.1rem;
+        color: #666;
+        font-style: italic;
+    }
+    
+    .nav {
+        display: flex;
+        justify-content: center;
+        gap: 30px;
+        margin-bottom: 40px;
+        padding: 20px;
+        background: #f8f8f8;
+        border-radius: 5px;
+        flex-wrap: wrap;
+    }
+    
+    .nav a {
+        color: #8b7355;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .nav a:hover, .nav a.active {
+        color: #2d2d2d;
+        border-bottom: 2px solid #8b7355;
+    }
+    
+    .content-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 30px;
+        margin-bottom: 40px;
+    }
+    
+    .content-section {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 25px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .section-icon {
+        font-size: 1.5rem;
+        margin-right: 10px;
+    }
+    
+    .section-title {
+        color: #8b7355;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+    
+    .section-subtitle {
+        color: #666;
+        font-size: 0.9rem;
+        margin-left: auto;
+    }
+    
+    .content-item {
+        margin-bottom: 15px;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 5px;
+        border-left: 3px solid #8b7355;
+    }
+    
+    .content-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .item-title {
+        font-weight: 600;
+        color: #2d2d2d;
+        margin-bottom: 5px;
+    }
+    
+    .item-meta {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 8px;
+    }
+    
+    .item-preview {
+        color: #444;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+    
+    .item-actions {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .action-link {
+        font-size: 0.8rem;
+        color: #8b7355;
+        text-decoration: none;
+        padding: 4px 8px;
+        border: 1px solid #8b7355;
+        border-radius: 3px;
+        transition: all 0.3s ease;
+    }
+    
+    .action-link:hover {
+        background: #8b7355;
+        color: white;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 30px;
+        color: #666;
+        font-style: italic;
+    }
+    
+    @media (max-width: 768px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+        .nav {
+            flex-direction: column;
+            gap: 15px;
+            text-align: center;
+        }
+    }
+  `;
+}
+
+function getNavigation(activePage) {
+  const pages = {
+    'dashboard': 'Dashboard',
+    'research': 'Research', 
+    'conversations': 'Conversations',
+    'archive': 'Archive'
+  };
+  
+  return `<nav class="nav">
+    <a href="/">Home</a>
+    ${Object.entries(pages).map(([key, label]) => 
+      `<a href="/${key}" ${activePage === key ? 'class="active"' : ''}>${label}</a>`
+    ).join('')}
+    <a href="https://archivefeverai.substack.com" target="_blank">Substack</a>
+  </nav>`;
 }
 
 module.exports = router;

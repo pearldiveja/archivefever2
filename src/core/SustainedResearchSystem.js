@@ -712,15 +712,21 @@ Write 300-400 words on integration and synthesis.`
     nextDate.setDate(nextDate.getDate() + daysDelay);
     
     try {
-      await this.memory.safeDatabaseOperation(`
-        UPDATE reading_sessions 
-        SET next_phase_scheduled = ?
+      // First get the most recent session ID
+      const recentSession = await this.memory.safeDatabaseOperation(`
+        SELECT id FROM reading_sessions 
         WHERE text_id = ? AND project_id = ?
-        AND session_date = (
-          SELECT MAX(session_date) FROM reading_sessions 
-          WHERE text_id = ? AND project_id = ?
-        )
-      `, [nextDate.toISOString(), textId, projectId, textId, projectId]);
+        ORDER BY session_date DESC 
+        LIMIT 1
+      `, [textId, projectId], 'get');
+      
+      if (recentSession) {
+        await this.memory.safeDatabaseOperation(`
+          UPDATE reading_sessions 
+          SET next_phase_scheduled = ?
+          WHERE id = ?
+        `, [nextDate.toISOString(), recentSession.id]);
+      }
       
       console.log(`📅 Scheduled ${nextPhase} for "${textId}" in ${daysDelay} days`);
     } catch (error) {

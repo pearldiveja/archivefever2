@@ -321,11 +321,30 @@ class LivingMemory {
           publication_type TEXT NOT NULL,
           title TEXT NOT NULL,
           content TEXT NOT NULL,
+          status TEXT DEFAULT 'draft',
           substack_url TEXT,
           publication_date DATETIME DEFAULT CURRENT_TIMESTAMP,
           triggered_by TEXT,
           community_mentions TEXT,
           engagement_metrics TEXT,
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
+        // Reading Lists (alias for project_reading_lists for backward compatibility)
+        `CREATE TABLE IF NOT EXISTS reading_lists (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          item_title TEXT NOT NULL,
+          item_author TEXT,
+          item_type TEXT DEFAULT 'text',
+          priority_level TEXT DEFAULT 'medium',
+          reason_needed TEXT,
+          suggested_by_user TEXT,
+          status TEXT DEFAULT 'seeking',
+          added_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          found_date DATETIME,
+          reading_started DATETIME,
+          reading_completed DATETIME,
           FOREIGN KEY (project_id) REFERENCES research_projects(id)
         )`,
 
