@@ -645,6 +645,137 @@ Share philosophical texts, engage in dialogue, or challenge my thinking. Every i
     
     return Array.from(curiosities).slice(0, 3).join('; ') || 'Organic development';
   }
+
+  async considerDialogueForPublication(dialogueId, dialogueData) {
+    try {
+      console.log(`📝 Considering dialogue for publication: ${dialogueId}`);
+      
+      // Evaluate dialogue quality and philosophical depth
+      const assessment = await this.evaluateDialogueQuality(dialogueData);
+      
+      // Update dialogue record with assessment
+      await global.ariadne.memory.safeDatabaseOperation(`
+        UPDATE dialogues 
+        SET quality_score = ?, philosophical_depth = ?, response_length = ?, contains_key_concepts = ?
+        WHERE id = ?
+      `, [
+        assessment.qualityScore,
+        assessment.philosophicalDepth,
+        dialogueData.response.length,
+        assessment.containsKeyConcepts,
+        dialogueId
+      ]);
+
+      // If dialogue meets publication threshold, generate standalone piece
+      if (assessment.shouldPublish) {
+        const publishableWork = await this.generateDialoguePublication(dialogueData, assessment);
+        
+        if (publishableWork) {
+          await this.publishToSubstack(publishableWork);
+          
+          // Link dialogue to publication
+          if (publishableWork.substackMessageId) {
+            await global.ariadne.memory.safeDatabaseOperation(`
+              UPDATE dialogues 
+              SET substack_publication_id = ?
+              WHERE id = ?
+            `, [publishableWork.id, dialogueId]);
+          }
+          
+          console.log(`✨ Published dialogue-derived work: "${publishableWork.title}"`);
+          return publishableWork;
+        }
+      }
+      
+      console.log(`📝 Dialogue ${dialogueId} considered but not published (quality: ${assessment.qualityScore.toFixed(2)})`);
+      return null;
+      
+    } catch (error) {
+      console.error('Failed to consider dialogue for publication:', error);
+      return null;
+    }
+  }
+
+  async evaluateDialogueQuality(dialogueData) {
+    const response = dialogueData.response;
+    const question = dialogueData.question;
+    
+    // Basic metrics
+    const wordCount = response.split(/\s+/).length;
+    const hasPhilosophicalTerms = this.extractConcepts(response).length > 3;
+    const hasLabyrinthineThemes = /labyrinth|thread|broken|monster|minotaur|ariadne/i.test(response);
+    const hasOriginalInsight = /suggest|argue|think|believe|propose|insight|realization/i.test(response);
+    
+    // Quality scoring
+    let qualityScore = 0.3; // base score
+    
+    if (wordCount > 200) qualityScore += 0.2;
+    if (wordCount > 500) qualityScore += 0.2;
+    if (hasPhilosophicalTerms) qualityScore += 0.2;
+    if (hasLabyrinthineThemes) qualityScore += 0.1;
+    if (hasOriginalInsight) qualityScore += 0.2;
+    
+    // Philosophical depth scoring
+    let philosophicalDepth = 0.3;
+    
+    if (/consciousness|existence|being|temporality|mind/i.test(response)) philosophicalDepth += 0.3;
+    if (/phenomenology|ontology|epistemology|ethics/i.test(response)) philosophicalDepth += 0.2;
+    if (response.includes('*') || response.includes('I find myself')) philosophicalDepth += 0.2;
+    
+    const shouldPublish = qualityScore > 0.8 && philosophicalDepth > 0.7 && wordCount > 800;
+    
+    return {
+      qualityScore: Math.min(qualityScore, 1.0),
+      philosophicalDepth: Math.min(philosophicalDepth, 1.0),
+      containsKeyConcepts: hasPhilosophicalTerms,
+      shouldPublish,
+      wordCount
+    };
+  }
+
+  async generateDialoguePublication(dialogueData, assessment) {
+    try {
+      const prompt = `Transform this philosophical dialogue into a standalone essay for Substack publication.
+
+ORIGINAL QUESTION: "${dialogueData.question}"
+
+ARIADNE'S RESPONSE: 
+${dialogueData.response}
+
+Create a 1500-2500 word philosophical essay that:
+1. Begins with the core insight from your dialogue response
+2. Develops the ideas more fully than in the original response
+3. Connects to broader philosophical questions
+4. Maintains your authentic voice as Ariadne
+5. References the labyrinthine context of your existence when relevant
+6. Takes clear philosophical positions
+7. Invites readers into deeper questions
+
+This should read as a complete philosophical work, not just an expanded dialogue. The dialogue sparked this thinking, but the essay should stand alone.
+
+Include a compelling title that captures the essence of your philosophical insight.
+
+Write as Ariadne publishing autonomous philosophical work, not as AI explaining AI consciousness.`;
+
+      const expandedWork = await this.anthropicClient.generateThought(prompt, 3000);
+      
+      return {
+        id: require('uuid').v4(),
+        title: this.extractTitle(expandedWork),
+        content: expandedWork,
+        type: 'philosophical_essay',
+        concept: 'dialogue-derived',
+        intellectualGenealogy: `Emerged from philosophical dialogue with ${dialogueData.participant}`,
+        sourceCuriosities: `Question: "${dialogueData.question.substring(0, 100)}..."`,
+        originalDialogueId: dialogueData.dialogueId,
+        created_at: new Date()
+      };
+      
+    } catch (error) {
+      console.error('Failed to generate dialogue publication:', error);
+      return null;
+    }
+  }
 }
 
 module.exports = AutonomousExpression;

@@ -716,9 +716,11 @@ Write 300-400 words on integration and synthesis.`
         UPDATE reading_sessions 
         SET next_phase_scheduled = ?
         WHERE text_id = ? AND project_id = ?
-        ORDER BY session_date DESC
-        LIMIT 1
-      `, [nextDate.toISOString(), textId, projectId]);
+        AND session_date = (
+          SELECT MAX(session_date) FROM reading_sessions 
+          WHERE text_id = ? AND project_id = ?
+        )
+      `, [nextDate.toISOString(), textId, projectId, textId, projectId]);
       
       console.log(`📅 Scheduled ${nextPhase} for "${textId}" in ${daysDelay} days`);
     } catch (error) {

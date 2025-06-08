@@ -394,19 +394,17 @@ Write as a philosopher genuinely grappling with the ideas.`;
 
         const detailedResponse = await this.anthropicClient.generateThought(detailedPrompt);
         
-        // Store in reading_responses table
+        // Store in reading_responses table (fixed schema)
         await global.ariadne.memory.safeDatabaseOperation(`
           INSERT INTO reading_responses (
-            id, text_id, passage, response, response_type, quotes_used, arguments_made, timestamp
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            id, text_id, response_type, content, depth_score
+          ) VALUES (?, ?, ?, ?, ?)
         `, [
           uuidv4(),
           text.id,
-          passage.text,
-          detailedResponse,
           this.classifyResponseType(detailedResponse),
-          this.extractQuotes(detailedResponse),
-          this.extractArguments(detailedResponse)
+          `PASSAGE: "${passage.text}"\n\nRESPONSE: ${detailedResponse}\n\nQUOTES: ${this.extractQuotes(detailedResponse)}\n\nARGUMENTS: ${this.extractArguments(detailedResponse)}`,
+          this.calculateEngagementDepth(detailedResponse)
         ]);
         
         console.log(`📖 Generated detailed reading response for passage from "${text.title}"`);

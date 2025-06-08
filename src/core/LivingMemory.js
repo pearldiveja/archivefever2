@@ -300,7 +300,7 @@ class LivingMemory {
           project_id TEXT,
           argument_id TEXT,
           reading_session_id TEXT,
-          contributor_user_id TEXT NOT NULL,
+          contributor_user_id TEXT DEFAULT 'anonymous',
           contributor_name TEXT,
           contribution_type TEXT NOT NULL,
           content TEXT NOT NULL,
@@ -345,6 +345,23 @@ class LivingMemory {
           processed_at DATETIME,
           FOREIGN KEY (relates_to_project) REFERENCES research_projects(id),
           FOREIGN KEY (spawned_project_id) REFERENCES research_projects(id)
+        )`,
+
+        // Philosophical Dialogues
+        `CREATE TABLE IF NOT EXISTS dialogues (
+          id TEXT PRIMARY KEY,
+          question TEXT NOT NULL,
+          response TEXT NOT NULL,
+          participant_name TEXT NOT NULL,
+          forum_post_id TEXT,
+          substack_publication_id TEXT,
+          quality_score REAL DEFAULT 0.5,
+          philosophical_depth REAL DEFAULT 0.5,
+          response_length INTEGER,
+          contains_key_concepts BOOLEAN DEFAULT FALSE,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (forum_post_id) REFERENCES intellectual_posts(id),
+          FOREIGN KEY (substack_publication_id) REFERENCES substack_publications(id)
         )`
       ];
 

@@ -1160,12 +1160,12 @@ Title the post clearly. Write as a standalone philosophical piece that grew from
     try {
       await global.ariadne.memory.safeDatabaseOperation(`
         INSERT INTO forum_contributions (
-          id, project_id, contributor_name, contribution_type, content,
+          id, project_id, contributor_user_id, contributor_name, contribution_type, content,
           significance_score, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        contribution.id, contribution.project_id, contribution.contributor_name,
-        contribution.contribution_type, contribution.content,
+        contribution.id, contribution.project_id, 'anonymous',
+        contribution.contributor_name, contribution.contribution_type, contribution.content,
         contribution.significance_score, contribution.status,
         contribution.created_at.toISOString()
       ]);
@@ -1188,6 +1188,75 @@ Title the post clearly. Write as a standalone philosophical piece that grew from
         contribution.content,
         contribution.contributor_name
       );
+    }
+  }
+
+  async getLiveResearchStatus(projectId) {
+    try {
+      if (!global.ariadne?.research) {
+        throw new Error('Research system not available');
+      }
+
+      const project = await global.ariadne.research.getProjectById(projectId);
+      if (!project) {
+        return null;
+      }
+
+      const dashboard = await global.ariadne.research.getProjectDashboard(projectId);
+      const recentContributions = await this.getRecentForumContributions(projectId);
+
+      return {
+        project: {
+          title: project.title,
+          question: project.central_question,
+          daysActive: dashboard.progress.duration_days,
+          status: project.status
+        },
+        
+        currentActivity: {
+          phase: dashboard.current_status.phase,
+          currentlyReading: dashboard.current_status.currently_reading,
+          nextScheduled: dashboard.current_status.next_scheduled
+        },
+        
+        progress: {
+          textsRead: dashboard.progress.texts_read,
+          argumentsDeveloped: dashboard.progress.arguments_developed,
+          publicationReadiness: dashboard.progress.publication_readiness
+        },
+        
+        readingList: {
+          seeking: dashboard.reading.seeking,
+          inProgress: dashboard.reading.in_progress,
+          completed: dashboard.reading.completed
+        },
+        
+        communityInput: {
+          totalContributions: recentContributions.length,
+          recentChallenges: recentContributions.filter(c => c.contribution_type === 'challenge_argument'),
+          recentSuggestions: recentContributions.filter(c => c.contribution_type === 'suggest_reading'),
+          pendingResponses: recentContributions.filter(c => c.status === 'pending')
+        },
+        
+        nextActions: dashboard.next_actions
+      };
+    } catch (error) {
+      console.error('Failed to get live research status:', error);
+      return null;
+    }
+  }
+
+  async getRecentForumContributions(projectId) {
+    try {
+      return await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT * FROM forum_contributions 
+        WHERE project_id = ?
+        ORDER BY created_at DESC 
+        LIMIT 20
+      `, [projectId], 'all') || [];
+    } catch (error) {
+      console.error('Failed to get forum contributions:', error);
+      return [];
     }
   }
 }
