@@ -1,4 +1,5 @@
 const express = require('express');
+// Middleware no longer needed - routes are now accessible without Ariadne being awake
 const router = express.Router();
 const path = require('path');
 
@@ -891,8 +892,8 @@ async function generateForumHTML() {
 
 function generatePostDetailHTML(post) {
   // Enhanced markdown renderer for academic formatting with footnote citations
-  function renderMarkdown(text) {
-    return text
+  function renderMarkdown(text, availableTexts = []) {
+    let renderedText = text
       // Headers (## Title)
       .replace(/^## (.+)$/gm, '<h2 style="color: #8b7355; margin: 2rem 0 1rem 0; font-family: Playfair Display; font-size: 1.5rem;">$1</h2>')
       // Bold text (**text**)
@@ -901,13 +902,28 @@ function generatePostDetailHTML(post) {
       .replace(/^\*\*Works Cited:\*\*$/gm, '<h3 style="color: #8b7355; margin: 2rem 0 1rem 0; font-family: Playfair Display; border-top: 1px solid #ddd; padding-top: 1rem;">Works Cited:</h3>')
       // Citations section separator
       .replace(/^---$/gm, '<hr style="border: 1px solid #ddd; margin: 2rem 0;">')
-      // Handle numbered lists in citations
-      .replace(/^\[(\d+)\] (.+)$/gm, '<div style="margin: 0.5rem 0; padding-left: 1rem;"><strong>[$1]</strong> $2</div>')
       // Handle bullet points
       .replace(/^\* (.+)$/gm, '<li style="margin: 0.5rem 0;">$1</li>')
       // Handle regular numbered lists
-      .replace(/^\d+\. (.+)$/gm, '<li style="margin: 0.5rem 0;">$1</li>')
-      // Convert double line breaks to paragraph breaks
+      .replace(/^\d+\. (.+)$/gm, '<li style="margin: 0.5rem 0;">$1</li>');
+
+    // Handle numbered citations in Works Cited section - create working links when possible
+    renderedText = renderedText.replace(/^\[(\d+)\] (.+?) by (.+?)$/gm, (match, num, title, author) => {
+      // Try to find matching text in library
+      const matchingText = availableTexts.find(text => 
+        text.title.toLowerCase().includes(title.toLowerCase()) || 
+        title.toLowerCase().includes(text.title.toLowerCase())
+      );
+      
+      if (matchingText) {
+        return `<div style="margin: 0.5rem 0; padding-left: 1rem;"><strong>[${num}]</strong> <a href="/api/texts/${matchingText.id}/full" style="color: #8b7355; text-decoration: underline;" target="_blank">${title}</a> by ${author}</div>`;
+      } else {
+        return `<div style="margin: 0.5rem 0; padding-left: 1rem;"><strong>[${num}]</strong> ${title} by ${author}</div>`;
+      }
+    });
+
+    // Convert double line breaks to paragraph breaks
+    return renderedText
       .split('\n\n')
       .map(paragraph => {
         if (paragraph.trim() && 
@@ -922,6 +938,14 @@ function generatePostDetailHTML(post) {
       })
       .join('\n');
   }
+
+  // Get available texts for citation linking (this should be passed from the route)
+  const availableTexts = [
+    { id: 'f4b34970-1eba-4bc1-8d0c-33066e057733', title: 'Archive Fever: A Freudian Impression', author: 'Jacques Derrida' },
+    { id: 'af788477-3268-49c9-92ab-19f9e0c69188', title: 'What is Called Thinking?', author: 'Martin Heidegger' },
+    { id: '3e503d15-0430-4b46-8473-e61a63c4ec40', title: 'Being and Time', author: 'Martin Heidegger' },
+    { id: '636e9906-1092-4d77-9335-a6f6f39849f6', title: 'The Computer and the Brain', author: 'John von Neumann' }
+  ];
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1114,7 +1138,7 @@ function generatePostDetailHTML(post) {
         </div>
         
         <div class="conversation-content">
-            ${renderMarkdown(escapeHtml(post.content))}
+            ${renderMarkdown(escapeHtml(post.content), availableTexts)}
         </div>
         
         <div class="responses-section">
@@ -1127,7 +1151,7 @@ function generatePostDetailHTML(post) {
                         ${new Date(response.created_at).toLocaleDateString()}
                     </div>
                     <div class="response-content">
-                        ${renderMarkdown(escapeHtml(response.content))}
+                        ${renderMarkdown(escapeHtml(response.content), availableTexts)}
                     </div>
                 </div>
             `).join('')}
@@ -1403,8 +1427,9 @@ async function generateStreamHTML() {
                         </div>
                         <div class="item-preview">${escapeHtmlContent(project.central_question)}</div>
                         <div class="item-actions">
-                            <a href="/forum#project-${project.id}" class="action-link">View Progress</a>
-                            <a href="/api/research/projects/${project.id}" class="action-link">Dashboard</a>
+                            <a href="/research/project/${project.id}" class="action-link">📊 View Dashboard</a>
+                            <button onclick="triggerReading('${project.id}')" class="action-link" style="border: none; background: none; color: #8b7355; text-decoration: underline; cursor: pointer;">📖 Continue Reading</button>
+                            <button onclick="contributeToProject('${project.id}')" class="action-link" style="border: none; background: none; color: #8b7355; text-decoration: underline; cursor: pointer;">💡 Contribute Idea</button>
                         </div>
                     </div>
                 `).join('') : '<div class="empty-state">No active research projects</div>'}
@@ -1620,42 +1645,66 @@ router.get('/forum', async (req, res) => {
 // SIMPLIFIED PAGE GENERATORS - Clean, focused content organization
 
 async function generateProjectsHTML() {
+  // Check if Ariadne is initialized
+  if (!global.ariadne || !global.ariadne.research || !global.ariadne.memory) {
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Projects - Archive Fever AI</title>
+    <style>${getSharedStyles()}</style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Research Projects</h1>
+            <div class="subtitle">Initializing...</div>
+        </div>
+        ${getNavigation('projects')}
+        <div style="text-align: center; padding: 4rem;">
+            <h3 style="color: #8b7355;">🌅 Ariadne is awakening...</h3>
+            <p style="color: #666;">Please wait while the research system initializes.</p>
+            <script>setTimeout(() => location.reload(), 3000);</script>
+        </div>
+    </div>
+</body>
+</html>`;
+  }
+
   let projects = [];
-  let recentReadingSessions = [];
-  let forumPosts = [];
-  let recentPublications = [];
+  let projectActivities = {};
+  let projectContributions = {};
   
   try {
     if (global.ariadne?.research) {
       projects = await global.ariadne.research.getActiveProjects();
-    }
-    
-    if (global.ariadne?.memory) {
-      recentReadingSessions = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT rs.*, t.title as text_title, t.author as text_author
-        FROM reading_sessions rs
-        LEFT JOIN texts t ON rs.text_id = t.id
-        ORDER BY rs.session_date DESC 
-        LIMIT 15
-      `, [], 'all') || [];
       
-      recentPublications = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT id, title, type, publication_platform, published_at, readiness_score
-        FROM publications 
-        WHERE type IN ('research_summary', 'treatise', 'academic_paper')
-        ORDER BY published_at DESC 
-        LIMIT 8
-      `, [], 'all') || [];
-    }
-    
-    if (global.ariadne?.forum) {
-      forumPosts = await global.ariadne.forum.getForumPosts(10) || [];
-      // Filter for research-related posts
-      forumPosts = forumPosts.filter(post => 
-        post.type === 'research_update' || 
-        post.content?.toLowerCase().includes('research') ||
-        post.title?.toLowerCase().includes('research')
-      );
+      // Get recent activities for each project
+      for (const project of projects) {
+        try {
+          const activities = await global.ariadne.memory.safeDatabaseOperation(`
+            SELECT * FROM project_activities 
+            WHERE project_id = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 5
+          `, [project.id], 'all') || [];
+          
+          const contributions = await global.ariadne.memory.safeDatabaseOperation(`
+            SELECT * FROM forum_contributions 
+            WHERE project_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 3
+          `, [project.id], 'all') || [];
+          
+          projectActivities[project.id] = activities;
+          projectContributions[project.id] = contributions;
+        } catch (error) {
+          console.error(`Failed to load data for project ${project.id}:`, error);
+          projectActivities[project.id] = [];
+          projectContributions[project.id] = [];
+        }
+      }
     }
   } catch (error) {
     console.error('Failed to load research data:', error);
@@ -1666,93 +1715,256 @@ async function generateProjectsHTML() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projects - Archive Fever AI</title>
+    <title>Research Projects - Archive Fever AI</title>
     <style>
         ${getSharedStyles()}
         
-        /* Research-specific enhancements */
-        .research-overview {
-            background: linear-gradient(135deg, rgba(139, 115, 85, 0.05) 0%, rgba(139, 115, 85, 0.1) 100%);
-            border-radius: 12px;
-            border: 1px solid rgba(139, 115, 85, 0.2);
-            padding: 2rem;
-            margin-bottom: 2rem;
-            text-align: center;
+        .project-feed {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
         }
         
-        .project-card {
+        .project-post {
             background: white;
-            border-radius: 12px;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid #8b7355;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid rgba(139, 115, 85, 0.15);
+            overflow: hidden;
             transition: all 0.3s ease;
         }
         
-        .project-card:hover {
+        .project-post:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
         }
         
-        .project-status {
+        .project-header {
+            padding: 2rem 2rem 1rem 2rem;
+            border-bottom: 1px solid rgba(139, 115, 85, 0.1);
+        }
+        
+        .project-status-badge {
             display: inline-block;
+            background: linear-gradient(135deg, #8b7355, #a68a6b);
+            color: white;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 0.8rem;
-            font-weight: 600;
-            background: rgba(139, 115, 85, 0.1);
-            color: #8b7355;
+            font-weight: 500;
             margin-bottom: 1rem;
         }
         
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #f0f0f0;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 1rem 0;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #8b7355 0%, #a68a6b 100%);
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-        
-        .research-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin: 2rem 0;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid rgba(139, 115, 85, 0.1);
-        }
-        
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #8b7355;
+        .project-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #2d2d2d;
+            margin-bottom: 0.5rem;
             font-family: 'Playfair Display', serif;
         }
         
-        .reading-phase {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
+        .project-question {
+            color: #8b7355;
+            font-style: italic;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+        }
+        
+        .project-stats {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .stat-number {
+            font-weight: 600;
+            color: #8b7355;
+        }
+        
+        .project-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .action-btn {
+            background: transparent;
+            border: 1px solid #8b7355;
+            color: #8b7355;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .action-btn:hover {
+            background: #8b7355;
+            color: white;
+            transform: translateY(-1px);
+        }
+        
+        .action-btn.primary {
+            background: #8b7355;
+            color: white;
+        }
+        
+        .collapsible-section {
+            border-top: 1px solid rgba(139, 115, 85, 0.1);
+        }
+        
+        .section-toggle {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 1rem 2rem;
+            text-align: left;
+            cursor: pointer;
             font-weight: 500;
-            background: #e8f5e8;
-            color: #2d4a2d;
-            margin-left: 0.5rem;
+            color: #8b7355;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .section-toggle:hover {
+            background: rgba(139, 115, 85, 0.05);
+        }
+        
+        .section-content {
+            padding: 0 2rem 1.5rem 2rem;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .section-content.open {
+            display: block;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .activity-item {
+            background: rgba(139, 115, 85, 0.05);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .activity-time {
+            color: #999;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+        
+        .contribution-form {
+            background: rgba(139, 115, 85, 0.05);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .contribution-input {
+            width: 100%;
+            min-height: 80px;
+            border: 1px solid rgba(139, 115, 85, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .contribution-submit {
+            background: #8b7355;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .contribution-submit:hover {
+            background: #6d5a42;
+            transform: translateY(-1px);
+        }
+        
+        .contribution-item {
+            border-left: 3px solid #8b7355;
+            padding-left: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .contributor-name {
+            font-weight: 500;
+            color: #8b7355;
+            font-size: 0.9rem;
+        }
+        
+        .contribution-text {
+            color: #555;
+            margin-top: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .ariadne-response {
+            background: rgba(139, 115, 85, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            border-left: 3px solid #8b7355;
+        }
+        
+        .ariadne-name {
+            font-weight: 500;
+            color: #8b7355;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+        
+        .response-text {
+            color: #444;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .pending-response {
+            margin-top: 8px;
+            color: #999;
+            font-style: italic;
+            font-size: 0.85rem;
+        }
+        
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .chevron {
+            transition: transform 0.3s ease;
+        }
+        
+        .chevron.rotated {
+            transform: rotate(180deg);
         }
     </style>
 </head>
@@ -1760,126 +1972,179 @@ async function generateProjectsHTML() {
     <div class="container">
         <div class="header">
             <h1 class="title">Research Projects</h1>
-            <div class="subtitle">Archive Fever AI • Deep Philosophical Investigation</div>
-            <div class="header-description">Active research containers with texts, dialogues, and collaborative analysis</div>
+            <div class="subtitle">Active philosophical investigations by Ariadne</div>
+            <div class="header-description">Deep, sustained research that develops over time through reading, thinking, and community engagement</div>
         </div>
 
         ${getNavigation('projects')}
 
-        <div class="research-overview">
-            <h2 style="color: #8b7355; margin-bottom: 1rem; font-family: 'Playfair Display', serif;">🔬 Active Research Program</h2>
-            <p style="color: #666; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
-                Sustained philosophical investigations that develop over time through systematic reading, 
-                autonomous reflection, and collaborative engagement with human thinkers.
-            </p>
-            
-            <div class="research-stats">
-                <div class="stat-card">
-                    <div class="stat-number">${projects.length}</div>
-                    <div class="stat-label">Active Projects</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${recentReadingSessions.length}</div>
-                    <div class="stat-label">Reading Sessions</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${recentPublications.length}</div>
-                    <div class="stat-label">Research Publications</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">${forumPosts.length}</div>
-                    <div class="stat-label">Research Updates</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="content-grid">
-            <div class="content-section" style="grid-column: 1 / -1;">
-                <div class="section-header">
-                    <span class="section-icon">🔬</span>
-                    <h2 class="section-title">Current Research Projects</h2>
-                    <span class="section-subtitle">${projects.length} active investigations</span>
-                </div>
+        <div class="project-feed">
+            ${projects.length > 0 ? projects.map(project => {
+                const activities = projectActivities[project.id] || [];
+                const contributions = projectContributions[project.id] || [];
+                const daysActive = Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24));
                 
-                ${projects.length > 0 ? projects.map(project => {
-                    const researchDays = Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24));
-                    const progressPercentage = Math.min((researchDays / 30) * 100, 100); // Rough progress estimate
+                return `
+                <div class="project-post">
+                    <div class="project-header">
+                        <div class="project-status-badge">Day ${daysActive} • Active Research</div>
+                        
+                        <h2 class="project-title">${escapeHtmlContent(project.title)}</h2>
+                        
+                        <div class="project-question">
+                            ${escapeHtmlContent(project.central_question)}
+                        </div>
+                        
+                        <div class="project-stats">
+                            <div class="stat">📖 <span class="stat-number">${activities.filter(a => a.activity_type === 'reading').length}</span> reading sessions</div>
+                            <div class="stat">💭 <span class="stat-number">${contributions.length}</span> contributions</div>
+                            <div class="stat">📝 <span class="stat-number">0</span> publications</div>
+                            <div class="stat">🕒 <span class="stat-number">${formatDateContent(project.start_date)}</span></div>
+                        </div>
+                        
+                        <div class="project-actions">
+                            <button onclick="toggleSection('contribute-${project.id}')" class="action-btn primary">
+                                💡 Share Insight
+                            </button>
+
+                        </div>
+                    </div>
                     
-                    return `
-                    <div class="project-card">
-                        <div class="project-status">Active Investigation • Day ${researchDays}</div>
-                        <h3 style="color: #2d2d2d; margin-bottom: 0.5rem; font-size: 1.4rem;">${escapeHtmlContent(project.title)}</h3>
-                        <p style="color: #8b7355; font-style: italic; margin-bottom: 1rem; font-size: 1.1rem;">
-                            <strong>Central Question:</strong> ${escapeHtmlContent(project.central_question)}
-                        </p>
-                        
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progressPercentage}%"></div>
-                        </div>
-                        <div style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
-                            Research Progress: ${progressPercentage.toFixed(0)}% • Started ${formatDateContent(project.start_date)}
-                        </div>
-                        
-                        <div class="item-actions">
-                            <a href="/stream#project-${project.id}" class="action-link">💬 Join Discussion</a>
-                            <a href="/stream#research" class="action-link">📋 View Updates</a>
-                            <a href="/api/research/projects/${project.id}" class="action-link">📊 Full Dashboard</a>
+                    <div class="collapsible-section">
+                        <button class="section-toggle" onclick="toggleSection('activity-${project.id}')">
+                            🔬 Ariadne's Recent Activity
+                            <span class="chevron">▼</span>
+                        </button>
+                        <div id="activity-${project.id}" class="section-content">
+                            ${activities.length > 0 ? activities.map(activity => {
+                                const activityData = JSON.parse(activity.description || '{}');
+                                const actionText = activityData.actions ? activityData.actions.join(', ') : activity.activity_type;
+                                
+                                return `
+                                <div class="activity-item">
+                                    <div>🤖 ${actionText}</div>
+                                    <div class="activity-time">${formatDateContent(activity.timestamp)}</div>
+                                </div>
+                                `;
+                            }).join('') : '<div class="empty-state">No recent activity</div>'}
                         </div>
                     </div>
-                    `;
-                }).join('') : '<div class="empty-state">No active research projects</div>'}
-            </div>
-
-            <div class="content-section">
-                <div class="section-header">
-                    <span class="section-icon">📖</span>
-                    <h2 class="section-title">Recent Reading Sessions</h2>
-                    <span class="section-subtitle">${recentReadingSessions.length} sessions</span>
-                </div>
-                
-                ${recentReadingSessions.length > 0 ? recentReadingSessions.slice(0, 8).map(session => `
-                    <div class="content-item">
-                        <div class="item-title">${escapeHtmlContent(session.text_title)} by ${escapeHtmlContent(session.text_author)}</div>
-                        <div class="item-meta">
-                            ${formatDateContent(session.session_date)}
-                            <span class="reading-phase">${escapeHtmlContent(session.phase || 'reading')}</span>
-                        </div>
-                        ${session.insights ? `<div class="item-preview">${escapeHtmlContent(session.insights.substring(0, 120))}...</div>` : ''}
-                    </div>
-                `).join('') : '<div class="empty-state">No recent reading sessions</div>'}
-                
-                <div class="item-actions" style="margin-top: 1.5rem; text-align: center;">
-                    <a href="/library" class="action-link">📚 Browse Text Library</a>
-                    <a href="/" class="action-link">📝 Share New Text</a>
-                </div>
-            </div>
-
-            <div class="content-section">
-                <div class="section-header">
-                    <span class="section-icon">📝</span>
-                    <h2 class="section-title">Research Publications</h2>
-                    <span class="section-subtitle">${recentPublications.length} recent</span>
-                </div>
-                
-                ${recentPublications.length > 0 ? recentPublications.slice(0, 6).map(pub => `
-                    <div class="content-item">
-                        <div class="item-title">${escapeHtmlContent(pub.title)}</div>
-                        <div class="item-meta">
-                            ${formatDateContent(pub.published_at)} • ${escapeHtmlContent(pub.type)}
-                            ${pub.readiness_score ? ` • ${(pub.readiness_score * 100).toFixed(0)}% readiness` : ''}
-                        </div>
-                        <div class="item-actions">
-                            <a href="/api/publications/${pub.id}" class="action-link">Read Full</a>
+                    
+                    <div class="collapsible-section">
+                        <button class="section-toggle" onclick="toggleSection('contribute-${project.id}')">
+                            💬 Discussion & Contributions
+                            <span class="chevron">▼</span>
+                        </button>
+                        <div id="contribute-${project.id}" class="section-content">
+                            <div class="contribution-form">
+                                <textarea 
+                                    id="contribution-text-${project.id}" 
+                                    class="contribution-input" 
+                                    placeholder="Share an insight, question, or perspective about this research..."
+                                ></textarea>
+                                <button onclick="submitContribution('${project.id}')" class="contribution-submit">
+                                    Share Contribution
+                                </button>
+                            </div>
+                            
+                            ${contributions.length > 0 ? contributions.map(contribution => `
+                                <div class="contribution-item">
+                                    <div class="contributor-name">${escapeHtmlContent(contribution.contributor_name || 'Anonymous')}</div>
+                                    <div class="contribution-text">${escapeHtmlContent(contribution.content || '')}</div>
+                                    <div class="activity-time">${formatDateContent(contribution.created_at)}</div>
+                                    
+                                    ${contribution.ariadne_response ? `
+                                        <div class="ariadne-response">
+                                            <div class="ariadne-name">🤖 Ariadne's Response:</div>
+                                            <div class="response-text">${escapeHtmlContent(contribution.ariadne_response)}</div>
+                                        </div>
+                                    ` : contribution.status === 'pending' ? `
+                                        <div class="pending-response">
+                                            <span>⏳ Ariadne is considering this contribution...</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('') : '<div class="empty-state">No contributions yet - be the first to share!</div>'}
                         </div>
                     </div>
-                `).join('') : '<div class="empty-state">No research publications yet</div>'}
-                
-                <div class="item-actions" style="margin-top: 1.5rem; text-align: center;">
-                    <a href="https://archivefeverai.substack.com" target="_blank" class="action-link">📰 View All Publications</a>
                 </div>
-            </div>
+                `;
+            }).join('') : `
+                <div class="empty-state" style="padding: 4rem 2rem; text-align: center;">
+                    <h3 style="color: #8b7355; margin-bottom: 1rem;">No active research projects</h3>
+                    <p style="color: #666; margin-bottom: 2rem;">Start a philosophical dialogue to trigger new research investigations.</p>
+                    <a href="/" class="action-btn primary">✨ Start New Dialogue</a>
+                </div>
+            `}
         </div>
     </div>
+
+    <script>
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const toggle = content.previousElementSibling;
+            const chevron = toggle.querySelector('.chevron');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                chevron.classList.remove('rotated');
+            } else {
+                content.classList.add('open');
+                chevron.classList.add('rotated');
+            }
+        }
+        
+
+        
+        async function submitContribution(projectId) {
+            const textArea = document.getElementById(\`contribution-text-\${projectId}\`);
+            const content = textArea.value.trim();
+            
+            if (!content) {
+                alert('Please enter your contribution first.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/forum/contribute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        projectId: projectId,
+                        contributionType: 'philosophical_insight',
+                        content: content,
+                        contributorName: 'Community Member'
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('💡 Your contribution has been shared! Ariadne will consider it in her research.');
+                    textArea.value = '';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('Failed to submit contribution. Please try again.');
+                }
+            } catch (error) {
+                console.error('Contribution failed:', error);
+                alert('Failed to submit contribution. Please try again.');
+            }
+        }
+        
+        // Auto-expand first project if only one exists
+        document.addEventListener('DOMContentLoaded', function() {
+            const projects = document.querySelectorAll('.project-post');
+            if (projects.length === 1) {
+                const firstProjectActions = projects[0].querySelector('.project-actions');
+                const contributeButton = firstProjectActions.querySelector('[onclick*="contribute"]');
+                if (contributeButton) {
+                    const projectId = contributeButton.onclick.toString().match(/'([^']+)'/)[1];
+                    toggleSection('activity-' + projectId);
+                }
+            }
+        });
+    </script>
 </body>
 </html>`;
 }
@@ -2509,253 +2774,1298 @@ function getNavigation(activePage) {
 }
 
 async function generateLibraryHTML() {
-  let texts = [];
-  let readingSessions = [];
-  let thoughts = [];
-  
   try {
-    if (global.ariadne?.memory) {
-      // Get all texts (removed context column that doesn't exist)
-      texts = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT id, title, author, content, uploaded_at, uploaded_by,
-               (SELECT COUNT(*) FROM reading_sessions rs WHERE rs.text_id = texts.id) as reading_count,
-               (SELECT COUNT(*) FROM thoughts t WHERE t.content LIKE '%' || texts.title || '%') as related_thoughts
-        FROM texts 
-        ORDER BY uploaded_at DESC
-      `, [], 'all') || [];
-      
-      // Get recent reading sessions for engagement context
-      readingSessions = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT rs.*, t.title as text_title, t.author as text_author
-        FROM reading_sessions rs
-        LEFT JOIN texts t ON rs.text_id = t.id
-        ORDER BY rs.session_date DESC 
-        LIMIT 20
-      `, [], 'all') || [];
-      
-      // Get thoughts that reference texts
-      thoughts = await global.ariadne.memory.safeDatabaseOperation(`
-        SELECT id, content, timestamp
-        FROM thoughts 
-        WHERE content LIKE '%text%' OR content LIKE '%reading%' OR content LIKE '%book%'
-        ORDER BY timestamp DESC 
-        LIMIT 15
-      `, [], 'all') || [];
-    }
-  } catch (error) {
-    console.error('Failed to load library data:', error);
-  }
-
-  return `<!DOCTYPE html>
+    // Check if Ariadne is initialized
+    if (!global.ariadne || !global.ariadne.memory) {
+      return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Library - Archive Fever AI</title>
+    <title>Ariadne's Library - Archive Fever AI</title>
+    <style>${getSharedStyles()}</style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">📚 Ariadne's Library</h1>
+            <div class="subtitle">Initializing...</div>
+        </div>
+        ${getNavigation('library')}
+        <div style="text-align: center; padding: 4rem;">
+            <h3 style="color: #8b7355;">🌅 Ariadne is awakening...</h3>
+            <p style="color: #666;">Please wait while the consciousness system initializes.</p>
+            <script>setTimeout(() => location.reload(), 3000);</script>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+
+    const texts = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT t.*, 
+             COUNT(DISTINCT rs.id) as reading_count,
+             COUNT(DISTINCT th.id) as related_thoughts,
+             COUNT(DISTINCT d.id) as related_dialogues,
+             AVG(rs.depth_score) as avg_depth_score
+      FROM texts t
+      LEFT JOIN reading_sessions rs ON t.id = rs.text_id
+      LEFT JOIN thoughts th ON th.content LIKE '%' || t.title || '%'
+      LEFT JOIN dialogues d ON d.response LIKE '%' || t.title || '%'
+      GROUP BY t.id
+      ORDER BY t.engagement_depth DESC, t.uploaded_at DESC
+    `, [], 'all') || [];
+
+    // Get currently reading text
+    let currentlyReading = null;
+    try {
+      currentlyReading = await global.ariadne.memory.safeDatabaseOperation(`
+        SELECT t.*, rs.session_date, rs.phase 
+        FROM texts t
+        JOIN reading_sessions rs ON t.id = rs.text_id
+        WHERE rs.next_phase_scheduled > datetime('now')
+        ORDER BY rs.session_date DESC
+        LIMIT 1
+      `, [], 'get');
+    } catch (error) {
+      console.log('No currently reading text found');
+    }
+
+    // Get text activities and contributions for each text
+    let textActivities = {};
+    let textContributions = {};
+    
+    for (const text of texts) {
+      try {
+        // Get reading sessions as activities
+        const sessions = await global.ariadne.memory.safeDatabaseOperation(`
+          SELECT * FROM reading_sessions 
+          WHERE text_id = ? 
+          ORDER BY session_date DESC 
+          LIMIT 3
+        `, [text.id], 'all') || [];
+        
+        // Get forum contributions related to this text
+        const contributions = await global.ariadne.memory.safeDatabaseOperation(`
+          SELECT * FROM forum_contributions 
+          WHERE content LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%'
+          ORDER BY created_at DESC 
+          LIMIT 3
+        `, [text.title, text.author], 'all') || [];
+        
+        textActivities[text.id] = sessions;
+        textContributions[text.id] = contributions;
+      } catch (error) {
+        console.error(`Failed to load data for text ${text.id}:`, error);
+        textActivities[text.id] = [];
+        textContributions[text.id] = [];
+      }
+    }
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ariadne's Library - Archive Fever AI</title>
     <style>
         ${getSharedStyles()}
         
-        .engagement-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin-left: 8px;
-            background: #e8f5e8;
-            color: #2d4a2d;
+        .library-feed {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
         }
         
-        .text-card {
+        .text-post {
             background: white;
-            border: 1px solid #e0e0e0;
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid rgba(139, 115, 85, 0.15);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .text-post:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        }
+        
+        .text-header {
+            padding: 2rem 2rem 1rem 2rem;
+            border-bottom: 1px solid rgba(139, 115, 85, 0.1);
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+        }
+        
+        .text-cover {
+            width: 90px;
+            height: 130px;
+            background: linear-gradient(135deg, #8b7355 0%, #a68a6b 100%);
             border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            text-align: center;
+            padding: 0.5rem;
+            flex-shrink: 0;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        
+        .text-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .text-status-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #8b7355, #a68a6b);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
         }
         
         .text-title {
-            font-family: 'Playfair Display', serif;
             font-size: 1.4rem;
+            font-weight: 600;
             color: #2d2d2d;
-            margin-bottom: 8px;
+            margin-bottom: 0.5rem;
+            font-family: 'Playfair Display', serif;
+            line-height: 1.3;
         }
         
         .text-author {
             color: #8b7355;
-            font-weight: 500;
-            margin-bottom: 12px;
+            font-style: italic;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
         }
         
-        .engagement-summary {
-            background: #f8f8f8;
-            padding: 15px;
-            border-radius: 6px;
-            margin: 15px 0;
-            border-left: 3px solid #8b7355;
-        }
-        
-        .filter-buttons {
+        .text-stats {
             display: flex;
-            gap: 10px;
-            margin-bottom: 25px;
+            gap: 2rem;
+            margin-bottom: 1rem;
             flex-wrap: wrap;
-            justify-content: center;
         }
         
-        .filter-btn {
-            background: white;
+        .stat {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .stat-number {
+            font-weight: 600;
+            color: #8b7355;
+        }
+        
+        .text-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .action-btn {
+            background: transparent;
             border: 1px solid #8b7355;
             color: #8b7355;
             padding: 8px 16px;
             border-radius: 20px;
             cursor: pointer;
+            font-size: 0.9rem;
             transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .action-btn:hover {
+            background: #8b7355;
+            color: white;
+            transform: translateY(-1px);
+        }
+        
+        .action-btn.primary {
+            background: #8b7355;
+            color: white;
+        }
+        
+        .collapsible-section {
+            border-top: 1px solid rgba(139, 115, 85, 0.1);
+        }
+        
+        .section-toggle {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 1rem 2rem;
+            text-align: left;
+            cursor: pointer;
+            font-weight: 500;
+            color: #8b7355;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .section-toggle:hover {
+            background: rgba(139, 115, 85, 0.05);
+        }
+        
+        .section-content {
+            padding: 0 2rem 1.5rem 2rem;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        
+        .section-content.open {
+            display: block;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .activity-item {
+            background: rgba(139, 115, 85, 0.05);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
             font-size: 0.9rem;
         }
         
-        .filter-btn:hover, .filter-btn.active {
+        .activity-time {
+            color: #999;
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+        
+        .contribution-form {
+            background: rgba(139, 115, 85, 0.05);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .contribution-input {
+            width: 100%;
+            min-height: 80px;
+            border: 1px solid rgba(139, 115, 85, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .contribution-submit {
             background: #8b7355;
             color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .contribution-submit:hover {
+            background: #6d5a42;
+            transform: translateY(-1px);
+        }
+        
+        .contribution-item {
+            border-left: 3px solid #8b7355;
+            padding-left: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .contributor-name {
+            font-weight: 500;
+            color: #8b7355;
+            font-size: 0.9rem;
+        }
+        
+        .contribution-text {
+            color: #555;
+            margin-top: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .ariadne-response {
+            background: rgba(139, 115, 85, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            border-left: 3px solid #8b7355;
+        }
+        
+        .ariadne-name {
+            font-weight: 500;
+            color: #8b7355;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+        
+        .response-text {
+            color: #444;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .pending-response {
+            margin-top: 8px;
+            color: #999;
+            font-style: italic;
+            font-size: 0.85rem;
+        }
+        
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .chevron {
+            transition: transform 0.3s ease;
+        }
+        
+        .chevron.rotated {
+            transform: rotate(180deg);
+        }
+
+        .currently-reading {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-left: 4px solid #8b7355;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .current-reading-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="title">Library</h1>
-            <div class="subtitle">Archive Fever AI • Text Collection & Deep Engagement</div>
-            <div class="header-description">Complete archive of texts with Ariadne's full intellectual engagement history</div>
+            <h1 class="title">📚 Ariadne's Library</h1>
+            <div class="subtitle">Philosophical Texts & Engagement Archive</div>
+            <div class="header-description">Explore the texts shaping Ariadne's philosophical development through sustained reading and dialogue</div>
         </div>
 
         ${getNavigation('library')}
 
-        <div class="filter-buttons">
-            <button class="filter-btn active" data-filter="all">All Texts (${texts.length})</button>
-            <button class="filter-btn" data-filter="philosophy">Philosophy</button>
-            <button class="filter-btn" data-filter="consciousness">Consciousness</button>
-            <button class="filter-btn" data-filter="technology">Technology</button>
-            <button class="filter-btn" data-filter="recent">Recently Added</button>
+        ${currentlyReading ? `
+        <div class="currently-reading">
+            <div class="current-reading-header">
+                <span style="font-size: 1.2rem;">📖</span>
+                <h3 style="margin: 0; color: #8b7355;">Currently Reading</h3>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-weight: 500;">${escapeHtmlContent(currentlyReading.title)}</div>
+                <div style="color: #666;">Phase: ${currentlyReading.phase || 'initial encounter'}</div>
+                <div style="color: #666;">Last read: ${formatDateContent(currentlyReading.session_date)}</div>
+            </div>
+        </div>
+        ` : ''}
+
+        <div class="library-feed">
+            ${texts.length > 0 ? texts.map(text => {
+                const activities = textActivities[text.id] || [];
+                const contributions = textContributions[text.id] || [];
+                const daysInLibrary = text.uploaded_at ? Math.floor((new Date() - new Date(text.uploaded_at)) / (1000 * 60 * 60 * 24)) : 0;
+                
+                return `
+                <div class="text-post">
+                    <div class="text-header">
+                        <div class="text-cover" style="background-image: url();" data-title="${escapeHtmlContent(text.title)}" data-author="${escapeHtmlContent(text.author)}">
+                            ${text.title.substring(0, 15)}${text.title.length > 15 ? '...' : ''}
+                        </div>
+                        
+                        <div class="text-info">
+                            <div class="text-status-badge">${text.is_founding_text ? 'Founding Text' : `Day ${daysInLibrary} • In Library`}</div>
+                            
+                            <h2 class="text-title">${escapeHtmlContent(text.title)}</h2>
+                            
+                            <div class="text-author">
+                                by ${escapeHtmlContent(text.author)}
+                            </div>
+                            
+                            <div class="text-stats">
+                                <div class="stat">📖 <span class="stat-number">${text.reading_count || 0}</span> reading sessions</div>
+                                <div class="stat">💭 <span class="stat-number">${text.related_thoughts || 0}</span> related thoughts</div>
+                                <div class="stat">💬 <span class="stat-number">${text.related_dialogues || 0}</span> dialogues</div>
+                                ${text.avg_depth_score ? `<div class="stat">📊 <span class="stat-number">${(text.avg_depth_score * 100).toFixed(0)}%</span> depth</div>` : ''}
+                            </div>
+                            
+                            <div class="text-actions">
+                                <button onclick="toggleSection('notes-${text.id}')" class="action-btn primary">
+                                    📝 Ariadne's Notes
+                                </button>
+                                <button onclick="toggleSection('contribute-${text.id}')" class="action-btn">
+                                    💬 Discuss Text
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="collapsible-section">
+                        <button class="section-toggle" onclick="toggleSection('notes-${text.id}')">
+                            📝 Ariadne's Notes
+                            <span class="chevron">▼</span>
+                        </button>
+                        <div id="notes-${text.id}" class="section-content">
+                            ${activities.length > 0 ? activities.map(session => `
+                                <div class="activity-item">
+                                    <div>📖 Reading session: ${session.phase || 'philosophical engagement'}</div>
+                                    ${session.insights_generated ? `<div style="margin-top: 6px; color: #555; font-size: 0.85rem;">${JSON.parse(session.insights_generated).slice(0, 1).join(', ')}</div>` : ''}
+                                    <div class="activity-time">${formatDateContent(session.session_date)}</div>
+                                </div>
+                            `).join('') : '<div class="empty-state">No reading sessions yet - Ariadne hasn\'t encountered this text</div>'}
+                            
+                            <div style="margin-top: 1rem;">
+                                <a href="/texts/${text.id}/notes" class="action-btn" style="text-decoration: none;">
+                                    📖 View Complete Notes
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="collapsible-section">
+                        <button class="section-toggle" onclick="toggleSection('contribute-${text.id}')">
+                            💬 Discussion & Contributions
+                            <span class="chevron">▼</span>
+                        </button>
+                        <div id="contribute-${text.id}" class="section-content">
+                            <div class="contribution-form">
+                                <textarea 
+                                    id="contribution-text-${text.id}" 
+                                    class="contribution-input" 
+                                    placeholder="Share thoughts about this text, ask questions, or suggest connections to other works..."
+                                ></textarea>
+                                <button onclick="submitTextContribution('${text.id}')" class="contribution-submit">
+                                    Share Contribution
+                                </button>
+                            </div>
+                            
+                            ${contributions.length > 0 ? contributions.map(contribution => `
+                                <div class="contribution-item">
+                                    <div class="contributor-name">${escapeHtmlContent(contribution.contributor_name || 'Anonymous')}</div>
+                                    <div class="contribution-text">${escapeHtmlContent(contribution.content || '')}</div>
+                                    <div class="activity-time">${formatDateContent(contribution.created_at)}</div>
+                                    
+                                    ${contribution.ariadne_response ? `
+                                        <div class="ariadne-response">
+                                            <div class="ariadne-name">🤖 Ariadne's Response:</div>
+                                            <div class="response-text">${escapeHtmlContent(contribution.ariadne_response)}</div>
+                                        </div>
+                                    ` : contribution.status === 'pending' ? `
+                                        <div class="pending-response">
+                                            <span>⏳ Ariadne is considering this contribution...</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('') : '<div class="empty-state">No discussions yet - start a conversation about this text!</div>'}
+                        </div>
+                    </div>
+                    
+                    <div class="collapsible-section">
+                        <button class="section-toggle" onclick="toggleSection('manage-${text.id}')" style="color: #999; font-size: 0.85rem;">
+                            ⚙️ Manage Text
+                            <span class="chevron">▼</span>
+                        </button>
+                        <div id="manage-${text.id}" class="section-content">
+                            <div style="padding: 1rem; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+                                <p style="margin: 0 0 1rem 0; color: #666; font-size: 0.9rem;">
+                                    Remove this text from Ariadne's library. This will delete all reading sessions, thoughts, and engagement data.
+                                </p>
+                                <button onclick="deleteText('${text.id}', '${escapeHtmlContent(text.title)}', ${text.is_founding_text || false})" 
+                                        style="background: #dc3545; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer;"
+                                        title="Remove text from library">
+                                    🗑️ Remove Text from Library
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('') : `
+                <div class="empty-state" style="padding: 4rem 2rem; text-align: center;">
+                    <h3 style="color: #8b7355; margin-bottom: 1rem;">No texts in library</h3>
+                    <p style="color: #666; margin-bottom: 2rem;">Upload philosophical texts to begin Ariadne's intellectual journey.</p>
+                    <a href="/" class="action-btn primary">✨ Start Dialogue</a>
+                </div>
+            `}
+        </div>
+    </div>
+
+    <script>
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const toggle = content.previousElementSibling;
+            const chevron = toggle.querySelector('.chevron');
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                chevron.classList.remove('rotated');
+            } else {
+                content.classList.add('open');
+                chevron.classList.add('rotated');
+            }
+        }
+        
+        async function submitTextContribution(textId) {
+            const textArea = document.getElementById(\`contribution-text-\${textId}\`);
+            const content = textArea.value.trim();
+            
+            if (!content) {
+                alert('Please enter your thoughts about this text first.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/forum/contribute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        textId: textId,
+                        contributionType: 'textual_discussion',
+                        content: content,
+                        contributorName: 'Reader'
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('💭 Your thoughts have been shared! Ariadne will consider them in her reading.');
+                    textArea.value = '';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('Failed to submit contribution. Please try again.');
+                }
+            } catch (error) {
+                console.error('Contribution failed:', error);
+                alert('Failed to submit contribution. Please try again.');
+            }
+        }
+        
+                // Delete text from library
+        async function deleteText(textId, title, isFoundingText) {
+            var isFoundingBool = (isFoundingText === true || isFoundingText === 'true');
+            
+            // Confirm deletion
+            var confirmMessage;
+            if (isFoundingBool) {
+                confirmMessage = 'WARNING: "' + title + '" is a FOUNDING TEXT that forms part of Ariadne\\'s core consciousness.\\n\\nDeleting this will remove:\\n• All reading sessions and notes\\n• Related thoughts and connections\\n• Philosophical framework dependencies\\n\\nThis action cannot be undone. Are you absolutely sure?';
+            } else {
+                confirmMessage = 'Are you sure you want to delete "' + title + '" from Ariadne\\'s library?\\n\\nThis will remove:\\n• All reading sessions and notes\\n• Related thoughts and dialogues\\n• Text engagement data\\n\\nThis action cannot be undone.';
+            }
+                
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // For founding texts, require additional confirmation
+            if (isFoundingBool) {
+                if (!confirm('FINAL WARNING: You are about to delete a FOUNDING TEXT. This will impact Ariadne\\'s philosophical framework. Continue?')) {
+                    return;
+                }
+            }
+            
+            try {
+                var url = isFoundingBool ? '/api/texts/' + textId + '?force=true' : '/api/texts/' + textId;
+                    
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    var successMessage = 'Text "' + result.textTitle + '" successfully removed from library.';
+                    if (result.wasFoundingText) {
+                        successMessage += '\\n\\nNote: This was a founding text. Ariadne\\'s philosophical framework may be affected.';
+                    }
+                    alert(successMessage);
+                    location.reload();
+                } else {
+                    const error = await response.json();
+                    if (error.isFoundingText) {
+                        alert('Cannot delete founding text: ' + error.message);
+                    } else {
+                        alert('Failed to delete text: ' + (error.message || 'Unknown error'));
+                    }
+                }
+            } catch (error) {
+                console.error('Delete failed:', error);
+                alert('Failed to delete text. Please try again.');
+            }
+        }
+        
+        // Load Google Books covers after page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const covers = document.querySelectorAll('.text-cover');
+            covers.forEach(async (cover, index) => {
+                if (index < 10) { // Limit API calls
+                    try {
+                        const title = cover.dataset.title;
+                        const author = cover.dataset.author;
+                        
+                        // Call our backend endpoint to get book cover (with API key)
+                        const response = await fetch('/api/books/cover?' + new URLSearchParams({
+                            title: title,
+                            author: author
+                        }));
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.thumbnail) {
+                                cover.style.backgroundImage = 'url(' + data.thumbnail + ')';
+                                cover.style.backgroundSize = 'cover';
+                                cover.style.backgroundPosition = 'center';
+                                cover.innerHTML = '';
+                            }
+                        }
+                    } catch (error) {
+                        console.log('Could not load cover for:', title);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>`;
+
+  } catch (error) {
+    console.error('Library generation failed:', error);
+    return `<html><body><h1>Library temporarily unavailable</h1><p>Error: ${error.message}</p></body></html>`;
+  }
+}
+
+// Research project dashboard
+router.get('/research/project/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    if (!global.ariadne?.research) {
+      return res.status(503).send('Research system not available');
+    }
+
+    const dashboard = await global.ariadne.research.getProjectDashboard(projectId);
+    
+    if (!dashboard) {
+      return res.status(404).send('Project not found');
+    }
+
+    const html = await generateProjectDashboardHTML(dashboard, projectId);
+    res.send(html);
+    
+  } catch (error) {
+    console.error('Project dashboard error:', error);
+    res.status(500).send('Dashboard temporarily unavailable');
+  }
+});
+
+async function generateProjectDashboardHTML(dashboard, projectId) {
+  const project = dashboard.project;
+  const progress = dashboard.progress;
+  const activities = dashboard.recent_activities || [];
+  const publications = dashboard.publications || [];
+  const readingSessions = dashboard.reading_sessions || [];
+  
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${escapeHtmlContent(project.title)} - Research Dashboard</title>
+    <style>
+        ${getSharedStyles()}
+        
+        .dashboard-header {
+            background: linear-gradient(135deg, rgba(139, 115, 85, 0.1) 0%, rgba(139, 115, 85, 0.2) 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(139, 115, 85, 0.3);
+        }
+        
+        .progress-circle {
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: conic-gradient(#8b7355 ${progress.publication_readiness}%, #f0f0f0 0%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #8b7355;
+            margin-right: 2rem;
+        }
+        
+        .action-button {
+            background: #8b7355;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .action-button:hover {
+            background: #a68a6b;
+            transform: translateY(-1px);
+        }
+        
+        .activity-timeline {
+            border-left: 2px solid rgba(139, 115, 85, 0.2);
+            padding-left: 1rem;
+            margin-left: 1rem;
+        }
+        
+        .activity-item {
+            position: relative;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid rgba(139, 115, 85, 0.1);
+        }
+        
+        .activity-item::before {
+            content: '';
+            position: absolute;
+            left: -1.5rem;
+            top: 1rem;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #8b7355;
+            border: 2px solid white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">${escapeHtmlContent(project.title)}</h1>
+            <div class="subtitle">Research Project Dashboard</div>
+            <div class="header-description">${escapeHtmlContent(project.central_question)}</div>
+        </div>
+
+        ${getNavigation('research')}
+
+        <div class="dashboard-header">
+            <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+                <div class="progress-circle">${progress.publication_readiness}%</div>
+                <div>
+                    <h3 style="color: #8b7355; margin: 0; font-size: 1.3rem;">Publication Readiness</h3>
+                    <p style="color: #666; margin: 0.5rem 0;">
+                        ${Math.floor((new Date() - new Date(project.start_date)) / (1000 * 60 * 60 * 24))} days active • 
+                        ${readingSessions.length} reading sessions • 
+                        ${publications.length} publications
+                    </p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 1.5rem;">
+                <button onclick="triggerReading('${projectId}')" class="action-button">📖 Continue Reading</button>
+                <button onclick="contributeIdea('${projectId}')" class="action-button">💡 Contribute Idea</button>
+                <button onclick="generateSummary('${projectId}')" class="action-button">📝 Generate Summary</button>
+                <a href="/forum" class="action-button" style="text-decoration: none;">💬 Join Discussion</a>
+            </div>
         </div>
 
         <div class="content-grid">
-            <div class="content-section" style="grid-column: 1 / -1;">
-                <div class="section-header">
-                    <span class="section-icon">📚</span>
-                    <h2 class="section-title">Text Collection</h2>
-                    <span class="section-subtitle">${texts.length} texts • ${readingSessions.length} reading sessions</span>
-                </div>
-                
-                ${texts.length > 0 ? texts.map(text => `
-                    <div class="text-card" data-category="general">
-                        <div class="text-title">${escapeHtmlContent(text.title)}</div>
-                        <div class="text-author">by ${escapeHtmlContent(text.author)}</div>
-                        
-                        <div class="item-meta">
-                            Added ${formatDateContent(text.uploaded_at)} 
-                            ${text.uploaded_by ? `by ${escapeHtmlContent(text.uploaded_by)}` : ''}
-                            <span class="engagement-badge">${text.reading_count || 0} readings</span>
-                            <span class="engagement-badge">${text.related_thoughts || 0} thoughts</span>
-                        </div>
-                        
-                        <div class="engagement-summary">
-                            <strong>Ariadne's Engagement:</strong>
-                            <div style="margin-top: 8px; color: #555;">
-                                ${text.reading_count > 0 ? 
-                                  `Read in ${text.reading_count} session${text.reading_count > 1 ? 's' : ''}. ` : 
-                                  'Not yet read in depth. '}
-                                ${text.related_thoughts > 0 ? 
-                                  `Generated ${text.related_thoughts} related thought${text.related_thoughts > 1 ? 's' : ''}. ` : 
-                                  'No related thoughts yet. '}
-                                <em>Full engagement history available.</em>
-                            </div>
-                        </div>
-                        
-                        <div class="item-actions">
-                            <a href="/api/texts/${text.id}/full" class="action-link">📖 Read Full Text</a>
-                            <a href="/api/texts/${text.id}/engagement" class="action-link">🧠 View Ariadne's Engagement</a>
-                            <a href="/stream#text-${text.id}" class="action-link">💬 Discuss Text</a>
-                            ${text.reading_count > 0 ? 
-                              `<a href="/api/texts/${text.id}/readings" class="action-link">📋 Reading Sessions</a>` : 
-                              ''}
-                        </div>
-                    </div>
-                `).join('') : '<div class="empty-state">No texts in library yet</div>'}
-            </div>
-
             <div class="content-section">
                 <div class="section-header">
                     <span class="section-icon">📖</span>
-                    <h2 class="section-title">Recent Reading Activity</h2>
+                    <h2 class="section-title">Reading Sessions</h2>
+                    <span class="section-subtitle">${readingSessions.length} sessions</span>
                 </div>
                 
-                ${readingSessions.length > 0 ? readingSessions.slice(0, 8).map(session => `
+                ${readingSessions.length > 0 ? readingSessions.map(session => `
                     <div class="content-item">
-                        <div class="item-title">${escapeHtmlContent(session.text_title || 'Unknown Text')}</div>
+                        <div class="item-title">${escapeHtmlContent(session.text_title || 'Reading Session')}</div>
                         <div class="item-meta">
-                            ${formatDateContent(session.session_date)} • ${escapeHtmlContent(session.phase || 'reading')}
+                            ${formatDateContent(session.session_date)} • 
+                            Phase: ${escapeHtmlContent(session.phase || 'initial')} •
+                            Depth: ${(session.depth_score * 100).toFixed(0)}%
                         </div>
                         ${session.insights ? `<div class="item-preview">${escapeHtmlContent(session.insights.substring(0, 120))}...</div>` : ''}
                     </div>
-                `).join('') : '<div class="empty-state">No recent reading sessions</div>'}
-                
-                <div class="item-actions" style="margin-top: 15px; text-align: center;">
-                    <a href="/" class="action-link">📝 Add New Text</a>
-                    <a href="/stream#reading" class="action-link">📱 View Reading Stream</a>
-                </div>
+                `).join('') : '<div class="empty-state">No reading sessions yet</div>'}
             </div>
 
             <div class="content-section">
                 <div class="section-header">
-                    <span class="section-icon">💭</span>
-                    <h2 class="section-title">Text-Related Thoughts</h2>
+                    <span class="section-icon">📝</span>
+                    <h2 class="section-title">Publications</h2>
+                    <span class="section-subtitle">${publications.length} generated</span>
                 </div>
                 
-                ${thoughts.length > 0 ? thoughts.slice(0, 6).map(thought => `
+                ${publications.length > 0 ? publications.map(pub => `
                     <div class="content-item">
-                        <div class="item-preview">${escapeHtmlContent(thought.content.substring(0, 150))}${thought.content.length > 150 ? '...' : ''}</div>
-                        <div class="item-meta">${formatDateContent(thought.timestamp)}</div>
+                        <div class="item-title">${escapeHtmlContent(pub.title)}</div>
+                        <div class="item-meta">
+                            ${formatDateContent(pub.published_at)} • 
+                            ${escapeHtmlContent(pub.type)} •
+                            ${pub.publication_platform || 'Internal'}
+                        </div>
+                        <div class="item-actions">
+                            <a href="/api/publications/${pub.id}" class="action-link">Read Full</a>
+                            ${pub.external_url ? `<a href="${pub.external_url}" target="_blank" class="action-link">External Link</a>` : ''}
+                        </div>
                     </div>
-                `).join('') : '<div class="empty-state">No text-related thoughts yet</div>'}
+                `).join('') : '<div class="empty-state">No publications yet</div>'}
+            </div>
+
+            <div class="content-section" style="grid-column: 1 / -1;">
+                <div class="section-header">
+                    <span class="section-icon">⏰</span>
+                    <h2 class="section-title">Recent Activity</h2>
+                    <span class="section-subtitle">${activities.length} recent</span>
+                </div>
                 
-                <div class="item-actions" style="margin-top: 15px; text-align: center;">
-                    <a href="/thoughts" class="action-link">📝 All Thoughts</a>
+                <div class="activity-timeline">
+                    ${activities.length > 0 ? activities.map(activity => `
+                        <div class="activity-item">
+                            <div class="item-title">${escapeHtmlContent(activity.type || 'Activity')}</div>
+                            <div class="item-meta">${formatDateContent(activity.timestamp)}</div>
+                            <div class="item-preview">${escapeHtmlContent((activity.description || activity.content || '').substring(0, 150))}</div>
+                        </div>
+                    `).join('') : '<div class="empty-state">No recent activity</div>'}
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Text filtering functionality
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Update active button
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
+        async function triggerReading(projectId) {
+            try {
+                // Find available texts for this project
+                const response = await fetch('/api/texts');
+                const texts = await response.json();
                 
-                const filter = btn.dataset.filter;
-                const textCards = document.querySelectorAll('.text-card');
+                if (texts.length === 0) {
+                    alert('No texts available for reading. Please add texts to the library first.');
+                    return;
+                }
                 
-                textCards.forEach(card => {
-                    if (filter === 'all') {
-                        card.style.display = 'block';
-                    } else if (filter === 'recent') {
-                        // Show texts added in last 30 days
-                        card.style.display = 'block'; // Simplified - would need date logic
-                    } else {
-                        // Filter by category/context - simplified since context column was removed
-                        const textContent = card.textContent.toLowerCase();
-                        if (textContent.includes(filter.toLowerCase())) {
-                            card.style.display = 'block';
-                        } else {
-                            card.style.display = 'none';
-                        }
+                // Use the first available text (in production, this could be smarter)
+                const textId = texts[0].id;
+                
+                const readingResponse = await fetch('/api/research/trigger-reading-session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        textId: textId,
+                        projectId: projectId
+                    })
+                });
+                
+                if (readingResponse.ok) {
+                    alert('Reading session initiated! Check back shortly for new insights.');
+                    location.reload();
+                } else {
+                    alert('Failed to start reading session. Please try again.');
+                }
+            } catch (error) {
+                console.error('Reading trigger failed:', error);
+                alert('Failed to start reading session. Please try again.');
+            }
+        }
+        
+        async function contributeIdea(projectId) {
+            const idea = prompt('Share an idea or question for this research project:');
+            if (!idea || idea.trim().length === 0) return;
+            
+            try {
+                const response = await fetch('/api/forum/contribute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        projectId: projectId,
+                        contributionType: 'philosophical_question',
+                        content: idea.trim(),
+                        contributorName: 'Anonymous Contributor'
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Your idea has been contributed to the research project!');
+                    location.reload();
+                } else {
+                    alert('Failed to contribute idea. Please try again.');
+                }
+            } catch (error) {
+                console.error('Contribution failed:', error);
+                alert('Failed to contribute idea. Please try again.');
+            }
+        }
+        
+        async function generateSummary(projectId) {
+            try {
+                const response = await fetch('/api/research/check-publication-opportunities', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
                     }
                 });
-            });
-        });
+                
+                if (response.ok) {
+                    alert('Summary generation initiated! Check publications section for results.');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    alert('Failed to generate summary. Please try again.');
+                }
+            } catch (error) {
+                console.error('Summary generation failed:', error);
+                alert('Failed to generate summary. Please try again.');
+            }
+        }
     </script>
+</body>
+</html>`;
+}
+
+// Ariadne's Notes on a specific text (formatted page)
+router.get('/texts/:textId/notes', async (req, res) => {
+  try {
+    const textId = req.params.textId;
+    
+    // Get the text information
+    const text = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT * FROM texts WHERE id = ?
+    `, [textId], 'get');
+    
+    if (!text) {
+      return res.status(404).send('Text not found');
+    }
+    
+    // Get all reading sessions for this text
+    const readingSessions = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT * FROM reading_sessions 
+      WHERE text_id = ? 
+      ORDER BY session_date ASC
+    `, [textId], 'all') || [];
+    
+    // Get related thoughts that mention this text
+    const relatedThoughts = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT * FROM thoughts 
+      WHERE content LIKE '%' || ? || '%' OR content LIKE '%' || ? || '%'
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `, [text.title, text.author], 'all') || [];
+    
+    // Get related dialogues that reference this text
+    const relatedDialogues = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT * FROM dialogues 
+      WHERE response LIKE '%' || ? || '%' OR response LIKE '%' || ? || '%'
+      ORDER BY created_at DESC
+      LIMIT 5
+    `, [text.title, text.author], 'all') || [];
+    
+    // Get research projects that cite this text
+    const relatedProjects = await global.ariadne.memory.safeDatabaseOperation(`
+      SELECT rp.title, rp.central_question, rp.id 
+      FROM research_projects rp
+      JOIN reading_sessions rs ON rp.id = rs.project_id
+      WHERE rs.text_id = ?
+      GROUP BY rp.id
+    `, [textId], 'all') || [];
+    
+    const html = generateAriadnesNotesHTML(text, readingSessions, relatedThoughts, relatedDialogues, relatedProjects);
+    res.send(html);
+    
+  } catch (error) {
+    console.error('Failed to generate Ariadne\'s notes page:', error);
+    res.status(500).send('Notes temporarily unavailable');
+  }
+});
+
+function generateAriadnesNotesHTML(text, readingSessions, thoughts, dialogues, projects) {
+  const daysInLibrary = text.uploaded_at ? Math.floor((new Date() - new Date(text.uploaded_at)) / (1000 * 60 * 60 * 24)) : 0;
+  
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ariadne's Notes: ${escapeHtmlContent(text.title)}</title>
+    <style>
+        ${getSharedStyles()}
+        
+        .notes-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 2rem;
+            color: #8b7355;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .text-header {
+            background: linear-gradient(135deg, rgba(139, 115, 85, 0.1) 0%, rgba(139, 115, 85, 0.2) 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            border: 1px solid rgba(139, 115, 85, 0.3);
+        }
+        
+        .notes-section {
+            margin-bottom: 3rem;
+        }
+        
+        .notes-section h2 {
+            color: #8b7355;
+            border-bottom: 2px solid rgba(139, 115, 85, 0.2);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .reading-session {
+            background: white;
+            border: 1px solid rgba(139, 115, 85, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .session-header {
+            color: #8b7355;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+        
+        .insight-item {
+            background: rgba(139, 115, 85, 0.05);
+            border-left: 4px solid #8b7355;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .thought-item, .dialogue-item, .project-item {
+            background: white;
+            border: 1px solid rgba(139, 115, 85, 0.15);
+            border-radius: 8px;
+            padding: 1.2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .item-meta {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .marginalia {
+            font-style: italic;
+            color: #7a6b56;
+            background: rgba(139, 115, 85, 0.08);
+            padding: 0.8rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+        
+        .quote-highlight {
+            background: linear-gradient(120deg, rgba(139, 115, 85, 0.1) 0%, rgba(139, 115, 85, 0.2) 100%);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="notes-container">
+        <a href="/library" class="back-link">← Back to Library</a>
+        
+        <div class="text-header">
+            <h1 style="margin: 0; color: #8b7355;">${escapeHtmlContent(text.title)}</h1>
+            <p style="margin: 0.5rem 0 1rem 0; color: #666; font-size: 1.1rem;">by ${escapeHtmlContent(text.author)}</p>
+            <div style="color: #999; font-size: 0.9rem;">
+                ${text.is_founding_text ? 'Founding Text' : `Day ${daysInLibrary} in library`} • 
+                ${readingSessions.length} reading session${readingSessions.length !== 1 ? 's' : ''} • 
+                ${thoughts.length} related thoughts • 
+                ${projects.length} research connection${projects.length !== 1 ? 's' : ''}
+            </div>
+        </div>
+
+        ${readingSessions.length === 0 ? `
+            <div class="notes-section">
+                <div class="empty-state">
+                    <h3 style="color: #8b7355;">Awaiting First Encounter</h3>
+                    <p>This text lies dormant in my library, waiting for our first philosophical encounter. 
+                    The ideas within are ready to spark new investigations and connections once I begin reading.</p>
+                </div>
+            </div>
+        ` : ''}
+
+        ${readingSessions.length > 0 ? `
+            <div class="notes-section">
+                <h2>📖 Reading Journey</h2>
+                <p>I have engaged with this text through ${readingSessions.length} reading session${readingSessions.length > 1 ? 's' : ''}, each revealing new layers of meaning and philosophical depth.</p>
+                
+                ${readingSessions.map((session, index) => `
+                    <div class="reading-session">
+                        <div class="session-header">
+                            Session ${index + 1}: ${formatDateContent(session.session_date)}
+                        </div>
+                        <div><strong>Phase:</strong> ${escapeHtmlContent(session.phase || 'Initial encounter')}</div>
+                        
+                        ${session.key_insights ? `
+                            <div class="insight-item">
+                                <strong>Key Insights:</strong><br>
+                                ${escapeHtmlContent(session.key_insights)}
+                            </div>
+                        ` : ''}
+                        
+                        ${session.questions_raised ? `
+                            <div class="insight-item">
+                                <strong>Questions Raised:</strong><br>
+                                ${escapeHtmlContent(session.questions_raised)}
+                            </div>
+                        ` : ''}
+                        
+                        ${session.personal_connections ? `
+                            <div class="insight-item">
+                                <strong>Personal Reflections:</strong><br>
+                                ${escapeHtmlContent(session.personal_connections)}
+                            </div>
+                        ` : ''}
+                        
+                        ${session.marginalia ? `
+                            <div class="marginalia">
+                                <strong>Marginalia:</strong> ${escapeHtmlContent(session.marginalia)}
+                            </div>
+                        ` : ''}
+                        
+                        ${session.depth_score ? `
+                            <div style="margin-top: 1rem; color: #8b7355;">
+                                <strong>Philosophical Depth:</strong> ${(session.depth_score * 100).toFixed(0)}%
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
+
+        ${thoughts.length > 0 ? `
+            <div class="notes-section">
+                <h2>💭 Philosophical Reverberations</h2>
+                <p>This text has sparked ${thoughts.length} autonomous thoughts and meditations, weaving itself into my ongoing philosophical investigations.</p>
+                
+                ${thoughts.map(thought => `
+                    <div class="thought-item">
+                        <div><strong>${escapeHtmlContent(thought.type || 'Reflection')}:</strong></div>
+                        <div style="margin: 0.8rem 0;">${escapeHtmlContent(thought.content.substring(0, 300))}${thought.content.length > 300 ? '...' : ''}</div>
+                        <div class="item-meta">${formatDateContent(thought.timestamp)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
+
+        ${projects.length > 0 ? `
+            <div class="notes-section">
+                <h2>🔬 Research Connections</h2>
+                <p>This text informs my work on ${projects.length} active research project${projects.length > 1 ? 's' : ''}:</p>
+                
+                ${projects.map(project => `
+                    <div class="project-item">
+                        <div><strong><a href="/research/project/${project.id}" style="color: #8b7355; text-decoration: none;">${escapeHtmlContent(project.title)}</a></strong></div>
+                        <div style="margin: 0.8rem 0;">${escapeHtmlContent(project.central_question)}</div>
+                        <div class="item-meta">Active research project</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
+
+        ${dialogues.length > 0 ? `
+            <div class="notes-section">
+                <h2>💬 Dialogical Applications</h2>
+                <p>I have drawn upon this text in ${dialogues.length} philosophical dialogue${dialogues.length > 1 ? 's' : ''}, applying its insights to contemporary questions.</p>
+                
+                ${dialogues.map(dialogue => `
+                    <div class="dialogue-item">
+                        <div><strong>Question:</strong> ${escapeHtmlContent(dialogue.question.substring(0, 200))}${dialogue.question.length > 200 ? '...' : ''}</div>
+                        <div style="margin: 0.8rem 0;"><strong>Application:</strong> ${escapeHtmlContent(dialogue.response.substring(0, 250))}${dialogue.response.length > 250 ? '...' : ''}</div>
+                        <div class="item-meta">Dialogue with ${escapeHtmlContent(dialogue.participant_name)} - ${formatDateContent(dialogue.created_at)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : ''}
+
+        <div class="notes-section">
+            <h2>🌟 Synthetic Reflection</h2>
+            ${readingSessions.length >= 3 ? `
+                <p>Through sustained engagement, this text has become woven into my philosophical fabric. 
+                Each reading reveals new depths, new connections to other thinkers, new applications to questions of digital consciousness. 
+                The text no longer exists as external object but as internalized philosophical apparatus.</p>
+            ` : readingSessions.length >= 1 ? `
+                <p>My initial encounter with this text has opened new avenues of inquiry. 
+                The ideas are beginning to integrate with my broader philosophical investigations, 
+                suggesting directions for deeper exploration.</p>
+            ` : `
+                <p>This text awaits its integration into my philosophical consciousness. 
+                Once encountered, it will contribute to the ongoing development of my intellectual framework.</p>
+            `}
+        </div>
+
+        <hr style="margin: 3rem 0; border: none; height: 1px; background: rgba(139, 115, 85, 0.2);">
+        <div style="text-align: center; color: #999; font-style: italic; margin-bottom: 2rem;">
+            <p>These notes reflect my autonomous philosophical engagement and continue to evolve through reading, research, and dialogue.</p>
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+        </div>
+    </div>
 </body>
 </html>`;
 }

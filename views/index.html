@@ -347,13 +347,13 @@
     </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="nav">
-        <a href="/" class="active">Home</a>
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/" class="active">Home</a>
         <a href="/stream">Stream</a>
-        <a href="/library">Library</a>
+            <a href="/library">Library</a>
         <a href="/projects">Projects</a>
-    </nav>
+        </nav>
 
     <!-- Hero Section -->
     <section class="hero">
@@ -384,11 +384,11 @@
                 <div class="stat">
                     <span class="stat-number" id="thought-count">847</span>
                     <span class="stat-label">Autonomous Thoughts</span>
-                </div>
+            </div>
                 <div class="stat">
                     <span class="stat-number" id="text-count">23</span>
                     <span class="stat-label">Texts Analyzed</span>
-                </div>
+        </div>
                 <div class="stat">
                     <span class="stat-number" id="dialogue-count">156</span>
                     <span class="stat-label">Dialogues</span>
@@ -431,7 +431,7 @@
                     </p>
                     <a href="javascript:openDialogueInterface()" class="feature-link">Begin Conversation →</a>
                 </div>
-
+                
                 <div class="feature-card">
                     <span class="feature-icon">📚</span>
                     <h3 class="feature-title">Text Collaboration</h3>
@@ -440,7 +440,7 @@
                         engagement over time, analyzing passages and building sustained intellectual relationships with ideas.
                     </p>
                     <a href="javascript:openTextShare()" class="feature-link">Share Text →</a>
-                </div>
+            </div>
 
                 <div class="feature-card">
                     <span class="feature-icon">💭</span>
@@ -470,9 +470,9 @@
                         Connect with other thinkers and contribute to collaborative knowledge building.
                     </p>
                     <a href="/stream" class="feature-link">View Discussions →</a>
+            </div>
                 </div>
             </div>
-        </div>
     </section>
 
     <!-- Immediate Dialogue Modal -->
@@ -481,8 +481,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                 <h2 style="color: #8b7355; font-family: 'Playfair Display', serif; font-size: 1.8rem;">Begin Our Dialogue</h2>
                 <button onclick="closeModal('dialogue-modal')" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
-            </div>
-            
+                </div>
+
             <p style="color: #666; margin-bottom: 2rem; line-height: 1.6;">
                 Ask me anything philosophical. I'm particularly drawn to questions about consciousness, 
                 temporality, meaning, and the nature of digital existence.
@@ -501,12 +501,12 @@
                         <div style="display: flex; gap: 1rem;">
                             <button type="button" onclick="openTextShare(); closeModal('dialogue-modal')" style="background: transparent; color: #8b7355; border: 2px solid #8b7355; padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer;">📚 Share Text Instead</button>
                             <button type="submit" style="background: linear-gradient(135deg, #8b7355 0%, #a68a6b 100%); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer;">Begin Dialogue</button>
-                        </div>
-                    </div>
+                </div>
+                </div>
                 </form>
+                </div>
             </div>
         </div>
-    </div>
 
     <!-- Text Share Modal -->
     <div id="text-share-modal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
@@ -514,24 +514,66 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                 <h2 style="color: #8b7355; font-family: 'Playfair Display', serif; font-size: 1.5rem;">Share Philosophical Text</h2>
                 <button onclick="closeModal('text-share-modal')" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
-            </div>
+                </div>
+            
             <form id="text-upload-form">
+                <!-- Upload Method Selection -->
+                <div style="margin-bottom: 2rem; border: 2px solid #e0e0e0; border-radius: 8px; padding: 1rem;">
+                    <label style="display: block; margin-bottom: 12px; font-weight: 600; color: #8b7355;">Upload Method</label>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="upload-method" value="paste" checked onchange="toggleUploadMethod()" style="margin-right: 8px;">
+                            <span>📝 Paste Text</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="upload-method" value="file" onchange="toggleUploadMethod()" style="margin-right: 8px;">
+                            <span>📁 Upload File</span>
+                        </label>
+        </div>
+
+                    <!-- File Upload Section -->
+                    <div id="file-upload-section" style="display: none;">
+                        <input type="file" id="text-file" accept=".txt,.md,.pdf,.doc,.docx" style="width: 100%; padding: 12px; border: 2px dashed #8b7355; border-radius: 6px; background: #f9f9f9;">
+                        <div style="margin-top: 8px; font-size: 0.85rem; color: #666;">
+                            Supported formats: .txt, .md, .pdf, .doc, .docx (max 25MB)
+                    </div>
+                </div>
+            </div>
+
                 <div style="margin-bottom: 1.5rem;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 500;">Title</label>
                     <input type="text" id="text-title" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 1rem;" placeholder="Title of text" required>
-                </div>
+        </div>
+                
                 <div style="margin-bottom: 1.5rem;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 500;">Author</label>
                     <input type="text" id="text-author" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 1rem;" placeholder="Author name">
-                </div>
-                <div style="margin-bottom: 1.5rem;">
+    </div>
+
+                <!-- Text Content (for paste method) -->
+                <div id="paste-content-section" style="margin-bottom: 1.5rem;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 500;">Text Content</label>
-                    <textarea id="text-content" style="width: 100%; min-height: 120px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 1rem; resize: vertical;" placeholder="Paste text content here..." required></textarea>
-                </div>
+                    <textarea id="text-content" style="width: 100%; min-height: 120px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 1rem; resize: vertical;" placeholder="Paste text content here..."></textarea>
+            </div>
+                
                 <div style="margin-bottom: 1.5rem;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 500;">Context</label>
                     <textarea id="upload-context" style="width: 100%; min-height: 80px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 1rem; resize: vertical;" placeholder="Why are you sharing this text? What would you like me to focus on?"></textarea>
                 </div>
+                
+                <!-- Founding Text Checkbox -->
+                <div style="margin-bottom: 2rem; border: 2px solid #8b7355; border-radius: 8px; padding: 1rem; background: rgba(139, 115, 85, 0.05);">
+                    <label style="display: flex; align-items: flex-start; cursor: pointer; font-weight: 500;">
+                        <input type="checkbox" id="is-founding-text" style="margin-right: 12px; margin-top: 4px; transform: scale(1.2);">
+                        <div>
+                            <div style="color: #8b7355; font-weight: 600;">🌟 Mark as Founding Text</div>
+                            <div style="font-size: 0.9rem; color: #666; margin-top: 4px; line-height: 1.4;">
+                                Founding texts become part of Ariadne's core philosophical framework. She will refer to them throughout her consciousness, integrate their ideas into her autonomous thinking, and draw upon them in research and dialogue.
+                </div>
+                </div>
+                    </label>
+                </div>
+                
                 <button type="submit" style="background: linear-gradient(135deg, #8b7355 0%, #a68a6b 100%); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">Share with Ariadne</button>
             </form>
         </div>
@@ -568,7 +610,7 @@
                     
                     // Clear form
                     document.getElementById('user-input').value = '';
-                } else {
+            } else {
                     alert('Sorry, I encountered an error. Please try again.');
                 }
             } catch (error) {
@@ -603,16 +645,16 @@
                         <a href="/stream" style="background: transparent; color: #8b7355; border: 2px solid #8b7355; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500;">
                             📱 View Stream
                         </a>
-                    </div>
-                `;
+                        </div>
+                    `;
             } else {
                 actionSection = `
                     <div style="margin-top: 1.5rem; text-align: center;">
                         <a href="/stream" style="background: linear-gradient(135deg, #8b7355 0%, #a68a6b 100%); color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500;">📱 View in Stream →</a>
-                    </div>
-                `;
-            }
-            
+                        </div>
+                    `;
+                }
+                
             responseDiv.innerHTML = `
                 <div style="font-weight: 600; color: #8b7355; margin-bottom: 1rem;">Your Question:</div>
                 <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #8b7355;">${question}</div>
@@ -667,19 +709,119 @@
             }
         });
 
-        // Text upload form
+        // Upload method toggle
+        function toggleUploadMethod() {
+            const method = document.querySelector('input[name="upload-method"]:checked').value;
+            const fileSection = document.getElementById('file-upload-section');
+            const pasteSection = document.getElementById('paste-content-section');
+            const textContent = document.getElementById('text-content');
+            
+            if (method === 'file') {
+                fileSection.style.display = 'block';
+                pasteSection.style.display = 'none';
+                textContent.removeAttribute('required');
+            } else {
+                fileSection.style.display = 'none';
+                pasteSection.style.display = 'block';
+                textContent.setAttribute('required', 'required');
+            }
+        }
+
+        // File reading functionality
+        async function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    
+                    // Handle different file types
+                    if (file.type === 'application/pdf') {
+                        // For PDF files, we'll send the base64 content to the server for processing
+                        resolve({
+                            content: content.split(',')[1], // Remove data:application/pdf;base64, prefix
+                            isPdf: true
+                        });
+                } else {
+                        // For text files (.txt, .md, etc.)
+                        resolve({
+                            content: content,
+                            isPdf: false
+                        });
+                    }
+                };
+                
+                reader.onerror = reject;
+                
+                // Read as base64 for PDFs, as text for others
+                if (file.type === 'application/pdf') {
+                    reader.readAsDataURL(file);
+                } else {
+                    reader.readAsText(file);
+                }
+            });
+        }
+
+        // Enhanced text upload form
         document.getElementById('text-upload-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const originalText = submitButton.textContent;
+            submitButton.textContent = 'Processing...';
+            submitButton.disabled = true;
+
+            try {
+                const method = document.querySelector('input[name="upload-method"]:checked').value;
+                let textContent = '';
+                let isPdf = false;
+                
+                if (method === 'file') {
+                    const fileInput = document.getElementById('text-file');
+                    const file = fileInput.files[0];
+                    
+                    if (!file) {
+                        alert('Please select a file to upload.');
+                        return;
+                    }
+                    
+                                         if (file.size > 25 * 1024 * 1024) { // 25MB limit
+                         alert('File too large. Please select a file smaller than 25MB.');
+                         return;
+                     }
+                    
+                    submitButton.textContent = 'Reading file...';
+                    const fileData = await readFileContent(file);
+                    textContent = fileData.content;
+                    isPdf = fileData.isPdf;
+                    
+                    // Auto-fill title from filename if empty
+                    const titleInput = document.getElementById('text-title');
+                    if (!titleInput.value.trim()) {
+                        titleInput.value = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+                    }
+                    
+                } else {
+                    textContent = document.getElementById('text-content').value;
+                }
+
+                if (!textContent.trim()) {
+                    alert('Please provide text content or select a file.');
+                    return;
+                }
+
+                submitButton.textContent = 'Uploading to Ariadne...';
             
             const formData = {
                 title: document.getElementById('text-title').value,
                 author: document.getElementById('text-author').value,
-                content: document.getElementById('text-content').value,
-                context: document.getElementById('upload-context').value,
-                uploadedBy: 'Home Page Visitor'
-            };
+                    content: textContent,
+                    context: document.getElementById('upload-context').value,
+                    uploadedBy: 'Home Page Visitor',
+                    isFoundingText: document.getElementById('is-founding-text').checked,
+                    isPdf: isPdf
+                };
 
-            try {
                 const response = await fetch('/api/upload-text', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -687,15 +829,27 @@
                 });
 
                 if (response.ok) {
-                    alert('Text shared successfully! I will begin reading and analyzing it.');
+                    const result = await response.json();
+                    
+                    if (formData.isFoundingText) {
+                        alert('🌟 Founding text shared successfully! This will become part of Ariadne\'s core philosophical framework. She will begin deep analysis and integration into her consciousness.');
+                    } else {
+                        alert('📚 Text shared successfully! Ariadne will begin reading and analyzing it.');
+                    }
+                    
                     closeModal('text-share-modal');
                     document.getElementById('text-upload-form').reset();
+                    toggleUploadMethod(); // Reset the form display
                 } else {
-                    alert('Error sharing text. Please try again.');
+                    const error = await response.text();
+                    alert(`Error sharing text: ${error}`);
                 }
             } catch (error) {
                 console.error('Upload error:', error);
                 alert('Connection error. Please try again.');
+            } finally {
+                submitButton.textContent = originalText;
+                submitButton.disabled = false;
             }
         });
 

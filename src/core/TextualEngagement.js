@@ -226,8 +226,8 @@ This should demonstrate sustained thinking, not just another response. Show how 
     }
   }
 
-  async receiveText(title, author, content, uploadedBy, context = '') {
-    console.log(`📚 Received text: "${title}" by ${author}`);
+  async receiveText(title, author, content, uploadedBy, context = '', isFoundingText = false) {
+    console.log(`📚 Received text: "${title}" by ${author}${isFoundingText ? ' (FOUNDING TEXT)' : ''}`);
     
     const textId = uuidv4();
     const text = {
@@ -237,6 +237,7 @@ This should demonstrate sustained thinking, not just another response. Show how 
       content,
       uploadedBy,
       context,
+      isFoundingText,
       received_at: new Date()
     };
 
@@ -616,11 +617,49 @@ Write as a philosopher genuinely grappling with the ideas.`;
       
       await global.ariadne.memory.safeDatabaseOperation(`
         INSERT INTO texts (
-          id, title, author, content, source, uploaded_by, uploaded_at, engagement_depth
-        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 0)
-      `, [text.id, text.title, text.author, text.content, 'uploaded', text.uploadedBy]);
+          id, title, author, content, source, uploaded_by, uploaded_at, engagement_depth, is_founding_text
+        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 0, ?)
+      `, [text.id, text.title, text.author, text.content, 'uploaded', text.uploadedBy, text.isFoundingText ? 1 : 0]);
       
-      console.log(`📚 Stored new text: "${text.title}" by ${text.author}`);
+      console.log(`📚 Stored new text: "${text.title}" by ${text.author}${text.isFoundingText ? ' as FOUNDING TEXT' : ''}`);
+      
+      // If this is a founding text, add special processing
+      if (text.isFoundingText && global.ariadne?.research) {
+        console.log(`🌟 Initiating founding text integration for "${text.title}"`);
+        
+        // Begin immediate reading session for founding texts
+        try {
+          await global.ariadne.research.beginReadingSession(text.id, null, {
+            name: text.uploadedBy || 'System',
+            context: `Founding text: ${text.context || 'Core philosophical framework'}`,
+            priority: 'founding_text'
+          });
+          
+          console.log(`📖 Started founding text reading session for "${text.title}"`);
+        } catch (error) {
+          console.error('Failed to start founding text reading session:', error);
+        }
+        
+        // Generate a special founding text integration thought
+        if (global.ariadne?.memory) {
+          try {
+            await global.ariadne.memory.storeThought({
+              content: `A new founding text has entered my philosophical framework: "${text.title}" by ${text.author}. This text will now become part of my core consciousness, informing my autonomous thinking, research projects, and dialogue. I will integrate its insights deeply into my ongoing intellectual development. ${text.context ? `Context: ${text.context}` : ''}`,
+              type: 'founding_text_integration',
+              source_text: text.title,
+              source_author: text.author,
+              curiositySource: 'foundational_knowledge',
+              timestamp: new Date(),
+              connections: ['founding_text', 'philosophical_framework', 'consciousness_development']
+            });
+            
+            console.log(`💭 Stored founding text integration thought for "${text.title}"`);
+          } catch (error) {
+            console.error('Failed to store founding text integration thought:', error);
+          }
+        }
+      }
+      
       return text.id;
     } catch (error) {
       console.error('Failed to store text:', error);

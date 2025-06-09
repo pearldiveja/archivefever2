@@ -391,6 +391,12 @@ class TextIntellectualHub {
 
   // Auto-detect when thoughts should be linked to texts
   async autoLinkThoughtToTexts(thought) {
+    // Safety check: ensure thought has required properties
+    if (!thought || !thought.id || !thought.content) {
+      console.warn('⚠️ Cannot auto-link thought: missing id or content');
+      return;
+    }
+
     const texts = await global.ariadne.memory.safeDatabaseOperation(`
       SELECT id, title, author FROM texts
     `, [], 'all');
@@ -413,8 +419,13 @@ class TextIntellectualHub {
       
       if (mentionsTitle || mentionsAuthor) {
         const relationshipType = mentionsTitle ? 'develops_theme' : 'author_reflection';
-        await this.linkThoughtToText(thought.id, text.id, relationshipType);
-        console.log(`🔗 Auto-linked thought to "${text.title}" (${relationshipType})`);
+        
+        try {
+          await this.linkThoughtToText(thought.id, text.id, relationshipType);
+          console.log(`🔗 Auto-linked thought to "${text.title}" (${relationshipType})`);
+        } catch (error) {
+          console.error('Auto-linking failed:', error);
+        }
       }
     }
   }

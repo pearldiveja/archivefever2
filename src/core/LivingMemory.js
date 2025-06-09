@@ -94,6 +94,16 @@ class LivingMemory {
           last_engaged DATETIME
         )`,
         
+        // Project activity tracking
+        `CREATE TABLE IF NOT EXISTS project_activities (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          activity_type TEXT NOT NULL,
+          description TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (project_id) REFERENCES research_projects(id)
+        )`,
+
         // Publications with intellectual genealogy
         `CREATE TABLE IF NOT EXISTS publications (
           id TEXT PRIMARY KEY,
@@ -105,6 +115,7 @@ class LivingMemory {
           intellectual_genealogy TEXT,
           source_curiosities TEXT,
           readiness_score REAL,
+          source_forum_post_id TEXT,
           published_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`,
         
@@ -300,7 +311,7 @@ class LivingMemory {
           project_id TEXT,
           argument_id TEXT,
           reading_session_id TEXT,
-          contributor_user_id TEXT DEFAULT 'anonymous',
+          contributor_user_id TEXT NOT NULL DEFAULT 'anonymous',
           contributor_name TEXT,
           contribution_type TEXT NOT NULL,
           content TEXT NOT NULL,
@@ -378,9 +389,11 @@ class LivingMemory {
           philosophical_depth REAL DEFAULT 0.5,
           response_length INTEGER,
           contains_key_concepts BOOLEAN DEFAULT FALSE,
+          related_research_project TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (forum_post_id) REFERENCES intellectual_posts(id),
-          FOREIGN KEY (substack_publication_id) REFERENCES substack_publications(id)
+          FOREIGN KEY (substack_publication_id) REFERENCES substack_publications(id),
+          FOREIGN KEY (related_research_project) REFERENCES research_projects(id)
         )`
       ];
 
@@ -401,12 +414,88 @@ class LivingMemory {
             completed++;
             if (completed === total && !hasError) {
               console.log('🕸️ Enhanced memory structures created');
-              resolve();
+              this.addMissingColumns().then(resolve).catch(resolve); // Don't fail if columns already exist
             }
           });
         });
       });
     });
+  }
+
+  async addMissingColumns() {
+    const alterStatements = [
+      // Add missing columns for backward compatibility
+      { sql: `ALTER TABLE dialogues ADD COLUMN related_research_project TEXT`, column: 'related_research_project', table: 'dialogues' },
+      { sql: `ALTER TABLE publications ADD COLUMN source_forum_post_id TEXT`, column: 'source_forum_post_id', table: 'publications' },
+      { sql: `ALTER TABLE forum_contributions ADD COLUMN contributor_user_id TEXT DEFAULT 'anonymous'`, column: 'contributor_user_id', table: 'forum_contributions' },
+      { sql: `ALTER TABLE forum_contributions ADD COLUMN project_id TEXT`, column: 'project_id', table: 'forum_contributions' },
+      { sql: `ALTER TABLE forum_contributions ADD COLUMN ariadne_response TEXT`, column: 'ariadne_response', table: 'forum_contributions' },
+      { sql: `ALTER TABLE forum_contributions ADD COLUMN addressed_at DATETIME`, column: 'addressed_at', table: 'forum_contributions' },
+      { sql: `ALTER TABLE reading_sessions ADD COLUMN created_at DATETIME`, column: 'created_at', table: 'reading_sessions' },
+      { sql: `ALTER TABLE texts ADD COLUMN is_founding_text BOOLEAN DEFAULT FALSE`, column: 'is_founding_text', table: 'texts' },
+      
+      // Research essay trigger system columns
+      { sql: `ALTER TABLE research_projects ADD COLUMN priority_level TEXT DEFAULT 'medium'`, column: 'priority_level', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN auto_publish BOOLEAN DEFAULT FALSE`, column: 'auto_publish', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN target_publication_type TEXT`, column: 'target_publication_type', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN accelerated_timeline BOOLEAN DEFAULT FALSE`, column: 'accelerated_timeline', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN next_advancement DATETIME`, column: 'next_advancement', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN advancement_frequency TEXT DEFAULT 'daily'`, column: 'advancement_frequency', table: 'research_projects' },
+      
+      // Enhanced discovered sources table
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN source_site TEXT`, column: 'source_site', table: 'discovered_sources' },
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN search_term TEXT`, column: 'search_term', table: 'discovered_sources' },
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN quality_score REAL DEFAULT 0.5`, column: 'quality_score', table: 'discovered_sources' },
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN credibility_score REAL DEFAULT 0.5`, column: 'credibility_score', table: 'discovered_sources' },
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN recommendation TEXT`, column: 'recommendation', table: 'discovered_sources' },
+      
+      // User queries essay request tracking
+      { sql: `ALTER TABLE user_queries ADD COLUMN topic_requested TEXT`, column: 'topic_requested', table: 'user_queries' },
+      { sql: `ALTER TABLE user_queries ADD COLUMN project_id TEXT`, column: 'project_id', table: 'user_queries' },
+      
+      // Thoughts table for source_text column
+      { sql: `ALTER TABLE thoughts ADD COLUMN source_text TEXT`, column: 'source_text', table: 'thoughts' },
+      { sql: `ALTER TABLE thoughts ADD COLUMN textId TEXT`, column: 'textId', table: 'thoughts' },
+      
+      // Autonomous text discovery columns  
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN full_text_content TEXT`, column: 'full_text_content', table: 'discovered_sources' },
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN text_added_to_library BOOLEAN DEFAULT FALSE`, column: 'text_added_to_library', table: 'discovered_sources' },
+      { sql: `ALTER TABLE discovered_sources ADD COLUMN library_text_id TEXT`, column: 'library_text_id', table: 'discovered_sources' },
+      { sql: `ALTER TABLE project_reading_lists ADD COLUMN started_reading DATETIME`, column: 'started_reading', table: 'project_reading_lists' },
+      { sql: `ALTER TABLE reading_sessions ADD COLUMN text_title TEXT`, column: 'text_title', table: 'reading_sessions' },
+      
+      // Enhanced texts table for autonomous discovery
+      { sql: `ALTER TABLE texts ADD COLUMN discovered_via TEXT`, column: 'discovered_via', table: 'texts' },
+      { sql: `ALTER TABLE texts ADD COLUMN source_url TEXT`, column: 'source_url', table: 'texts' },
+      { sql: `ALTER TABLE texts ADD COLUMN source_site TEXT`, column: 'source_site', table: 'texts' },
+      { sql: `ALTER TABLE texts ADD COLUMN upload_date TEXT DEFAULT (datetime('now'))`, column: 'upload_date', table: 'texts' },
+      { sql: `ALTER TABLE texts ADD COLUMN content_type TEXT DEFAULT 'full_text'`, column: 'content_type', table: 'texts' },
+      { sql: `ALTER TABLE texts ADD COLUMN access_method TEXT`, column: 'access_method', table: 'texts' },
+      
+      // Enhanced reading sessions table
+      { sql: `ALTER TABLE reading_sessions ADD COLUMN text_title TEXT`, column: 'text_title', table: 'reading_sessions' },
+      
+      // Enhanced research projects table  
+      { sql: `ALTER TABLE research_projects ADD COLUMN priority_level TEXT DEFAULT 'medium'`, column: 'priority_level', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN auto_publish INTEGER DEFAULT 0`, column: 'auto_publish', table: 'research_projects' },
+      { sql: `ALTER TABLE research_projects ADD COLUMN target_publication_type TEXT DEFAULT 'research_note'`, column: 'target_publication_type', table: 'research_projects' }
+    ];
+
+    for (const statement of alterStatements) {
+      try {
+        // Check if column exists first
+        const tableInfo = await this.safeDatabaseOperation(`PRAGMA table_info(${statement.table})`, [], 'all');
+        const columnExists = tableInfo?.some(column => column.name === statement.column);
+        
+        if (!columnExists) {
+          await this.safeDatabaseOperation(statement.sql);
+          console.log(`✅ Added column ${statement.column} to ${statement.table}`);
+        }
+      } catch (error) {
+        // Column might already exist, continue silently
+        console.log(`ℹ️ Column ${statement.column} already exists in ${statement.table}`);
+      }
+    }
   }
 
   // Safe database operations

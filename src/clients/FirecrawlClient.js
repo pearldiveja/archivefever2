@@ -396,6 +396,172 @@ class FirecrawlClient {
     
     return unique.slice(0, limit);
   }
+
+  async searchForAccessibleTexts(query, options = {}) {
+    if (!this.firecrawl) return null;
+    
+    try {
+      console.log(`🔍 🔎 Using Firecrawl search for: "${query}"`);
+      
+      // Use Firecrawl's search API to find accessible texts - match Python example exactly
+      const searchResult = await this.firecrawl.search(query, {
+        limit: options.limit || 5,
+        scrapeOptions: {
+          formats: ['markdown']
+        }
+      });
+
+      if (!searchResult || !searchResult.data || searchResult.data.length === 0) {
+        console.log(`🔍 🔎 No accessible texts found for: "${query}"`);
+        return null;
+      }
+
+      console.log(`🔍 🔎 Found ${searchResult.data.length} accessible texts for: "${query}"`);
+      
+      // Process results for library integration
+      const processedResults = searchResult.data.map(result => ({
+        title: result.title || 'Untitled',
+        content: result.markdown || result.content || '',
+        url: result.url || '',
+        source: this.extractSourceFromUrl(result.url),
+        metadata: {
+          discovered_via: 'firecrawl_search',
+          search_query: query,
+          quality_score: 0.85 // High quality since Firecrawl validated accessibility
+        }
+      }));
+
+      return {
+        query: query,
+        results: processedResults,
+        total_found: searchResult.data.length
+      };
+
+    } catch (error) {
+      console.log(`🔍 🔎 Firecrawl search failed for "${query}": ${error.message}`);
+      return null;
+    }
+  }
+
+  async searchForAccessibleTextsREST(query, options = {}) {
+    try {
+      console.log(`🔍 🌐 Using direct REST API search for: "${query}"`);
+      
+      const searchOptions = {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query: query,
+          limit: options.limit || 5,
+          lang: "en",
+          country: "us", 
+          timeout: 60000,
+          ignoreInvalidURLs: false,
+          scrapeOptions: {
+            formats: ['markdown']
+          }
+        })
+      };
+
+      const response = await fetch('https://api.firecrawl.dev/v1/search', searchOptions);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const searchResult = await response.json();
+      
+      if (!searchResult || !searchResult.data || searchResult.data.length === 0) {
+        console.log(`🔍 🌐 No accessible texts found for: "${query}"`);
+        return null;
+      }
+
+      console.log(`🔍 🌐 Found ${searchResult.data.length} accessible texts for: "${query}"`);
+      
+      // Process results for library integration
+      const processedResults = searchResult.data.map(result => ({
+        title: result.title || 'Untitled',
+        content: result.markdown || result.content || '',
+        url: result.url || '',
+        source: this.extractSourceFromUrl(result.url),
+        metadata: {
+          discovered_via: 'firecrawl_search_rest',
+          search_query: query,
+          quality_score: 0.85
+        }
+      }));
+
+      return {
+        query: query,
+        results: processedResults,
+        total_found: searchResult.data.length
+      };
+
+    } catch (error) {
+      console.log(`🔍 🌐 REST API search failed for "${query}": ${error.message}`);
+      return null;
+    }
+  }
+
+  async downloadAllSearchResults(query, options = {}) {
+    try {
+      console.log(`🔍 📥 Downloading all search results for: "${query}"`);
+      
+      const searchResult = await this.firecrawl.search(query, {
+        limit: options.limit || 10,
+        scrapeOptions: {
+          formats: ['markdown']
+        }
+      });
+
+      if (!searchResult || !searchResult.data) {
+        return [];
+      }
+
+      const results = [];
+      for (const item of searchResult.data) {
+        if (item.markdown && item.markdown.length > 500) {
+          results.push({
+            title: item.title || 'Untitled',
+            url: item.url,
+            content: item.markdown,
+            source: this.extractSourceFromUrl(item.url),
+            searchQuery: query,
+            contentLength: item.markdown.length,
+            metadata: item.metadata || {}
+          });
+        }
+      }
+
+      console.log(`🔍 📥 Downloaded ${results.length} texts from search results`);
+      return results;
+
+    } catch (error) {
+      console.error(`🔍 📥 Download search results failed:`, error);
+      return [];
+    }
+  }
+
+  extractSourceFromUrl(url) {
+    if (!url) return 'Unknown';
+    
+    const domain = url.split('/')[2] || url;
+    
+    if (domain.includes('plato.stanford.edu')) return 'Stanford Encyclopedia';
+    if (domain.includes('iep.utm.edu')) return 'Internet Encyclopedia of Philosophy';
+    if (domain.includes('philpapers.org')) return 'PhilPapers';
+    if (domain.includes('arxiv.org')) return 'ArXiv';
+    if (domain.includes('gutenberg.org')) return 'Project Gutenberg';
+    if (domain.includes('jstor.org')) return 'JSTOR';
+    if (domain.includes('perseus.tufts.edu')) return 'Perseus Digital Library';
+    if (domain.includes('.edu')) return 'Academic Source';
+    if (domain.includes('wikipedia.org')) return 'Wikipedia';
+    
+    return domain;
+  }
 }
 
 module.exports = FirecrawlClient;

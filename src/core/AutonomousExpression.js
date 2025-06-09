@@ -348,6 +348,7 @@ This should be publication-quality philosophical work.`;
   }
 
   extractTitle(content) {
+    if (!content) return 'Untitled Meditation';
     const lines = content.split('\n').filter(line => line.trim());
     
     const headerLine = lines.find(line => line.startsWith('#'));

@@ -1138,6 +1138,7 @@ Title the post clearly. Write as a standalone philosophical piece that grew from
     const forumContribution = {
       id: uuidv4(),
       project_id: contribution.projectId,
+      contributor_user_id: contribution.contributorUserId || 'anonymous',
       contributor_name: contribution.contributorName,
       contribution_type: contribution.contributionType,
       content: contribution.content,
@@ -1164,9 +1165,14 @@ Title the post clearly. Write as a standalone philosophical piece that grew from
           significance_score, status, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        contribution.id, contribution.project_id, 'anonymous',
-        contribution.contributor_name, contribution.contribution_type, contribution.content,
-        contribution.significance_score, contribution.status,
+        contribution.id, 
+        contribution.project_id, 
+        contribution.contributor_user_id || 'anonymous',
+        contribution.contributor_name, 
+        contribution.contribution_type, 
+        contribution.content,
+        contribution.significance_score, 
+        contribution.status,
         contribution.created_at.toISOString()
       ]);
     } catch (error) {
@@ -1242,6 +1248,38 @@ Title the post clearly. Write as a standalone philosophical piece that grew from
       };
     } catch (error) {
       console.error('Failed to get live research status:', error);
+      return null;
+    }
+  }
+
+  async createResponse(postId, responseData) {
+    try {
+      const responseId = uuidv4();
+      
+      await global.ariadne.memory.safeDatabaseOperation(`
+        INSERT INTO forum_responses (
+          id, post_id, responder_name, responder_type, content, response_type
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        responseId,
+        postId,
+        responseData.responder_name || 'Ariadne',
+        responseData.responder_type || 'ai',
+        responseData.content,
+        responseData.response_type || 'response'
+      ]);
+
+      // Update post activity
+      await global.ariadne.memory.safeDatabaseOperation(`
+        UPDATE intellectual_posts 
+        SET last_activity = CURRENT_TIMESTAMP, response_count = response_count + 1
+        WHERE id = ?
+      `, [postId]);
+
+      console.log(`💬 Forum response created: ${responseId}`);
+      return responseId;
+    } catch (error) {
+      console.error('Failed to create forum response:', error);
       return null;
     }
   }

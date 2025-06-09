@@ -48,11 +48,11 @@ app.use(cors(corsOptions));
 
 // Body parsing with size limits
 app.use(express.json({ 
-  limit: `${process.env.MAX_UPLOAD_SIZE_MB || 10}mb`
+  limit: `${process.env.MAX_UPLOAD_SIZE_MB || 25}mb`
 }));
 app.use(express.urlencoded({ 
   extended: true,
-  limit: `${process.env.MAX_UPLOAD_SIZE_MB || 10}mb`
+  limit: `${process.env.MAX_UPLOAD_SIZE_MB || 25}mb`
 }));
 
 // Serve static files
@@ -183,6 +183,8 @@ async function loadFoundingTexts() {
   try {
     console.log('📖 Loading founding texts into library...');
     
+    // 🎯 CUSTOMIZE YOUR STARTING TEXTS HERE 🎯
+    // Add, remove, or modify these texts to change what Ariadne starts with
     const foundingTexts = [
       {
         title: "Archive Fever: A Freudian Impression",
@@ -212,8 +214,21 @@ async function loadFoundingTexts() {
         source: "founding_theoretical_text",
         uploadedBy: "Christopher - Founding Theorist"
       }
+
+      // 🆕 TO ADD NEW STARTING TEXTS:
+      // Uncomment and modify the template below:
+      /*
+      ,{
+        title: "Your Text Title Here",
+        author: "Author Name",
+        content: `Paste the full text content here. Can be very long - include complete essays, chapters, or excerpts.`,
+        source: "founding_text",
+        uploadedBy: "Your Name"
+      }
+      */
     ];
 
+    // Load each text into Ariadne's library
     for (const text of foundingTexts) {
       if (global.ariadne?.reading) {
         await global.ariadne.reading.receiveText(
@@ -221,7 +236,8 @@ async function loadFoundingTexts() {
           text.author, 
           text.content,
           text.uploadedBy,
-          "Founding philosophical text for Ariadne's intellectual development"
+          "Founding philosophical text for Ariadne's intellectual development",
+          true // Mark as founding text
         );
         console.log(`📚 Loaded: "${text.title}" by ${text.author}`);
       }
